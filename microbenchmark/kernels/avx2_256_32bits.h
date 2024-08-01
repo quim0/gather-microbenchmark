@@ -29,8 +29,7 @@ void static inline __attribute__((always_inline)) avx2_gather32_stride (
 
 
 void static inline __attribute__((always_inline)) avx2_gather32_same_index (
-    int const* data, 
-    __m256i vindex, 
+    int const* data,
     uint64_t data_size
     ); 
 

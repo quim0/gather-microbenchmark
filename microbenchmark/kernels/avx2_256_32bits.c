@@ -20,14 +20,9 @@ void static inline __attribute__((always_inline)) avx2_gather32_random (
     ) 
 {
     __m256i volatile res; 
-    __m256i volatile res; 
-    /*
-        random_simd generator aligned: 
-    */
-    __m256i random_simd; 
-
-     for (uint64_t i = 0; i < data_size; i+= 8) 
+    for (uint64_t i = 0; i < data_size; i+= 8) 
     {
+    	__m256i random_simd; // = random_si256(); 
         res = _mm256_i32gather_epi32 ((int const*)&data[0], random_simd, 1);
 
     }
@@ -39,14 +34,10 @@ void static inline __attribute__((always_inline)) avx2_gather32_random_u (
     uint64_t data_size
     ) 
 {
-    __m256i volatile res; 
-    /*
-        random_simd generator unaligned: 
-    */
-    __m256i random_simd; 
-
-     for (uint64_t i = 0; i < data_size; i+= 8) 
+    __m256i volatile res;
+    for (uint64_t i = 0; i < data_size; i+= 8) 
     {
+    	__m256i random_simd; // = random_si256(); 
         res = _mm256_i32gather_epi32 ((int const*)&data[0], random_simd, 1);
 
     }
@@ -69,10 +60,10 @@ void static inline __attribute__((always_inline)) avx2_gather32_stride (
 
 void static inline __attribute__((always_inline)) avx2_gather32_same_index (
     int const* data, 
-    __m256i vindex, 
     uint64_t data_size
     ) 
 {
+    const __m256i vindex = _mm256_set1_epi64x(1);
     __m256i volatile res; 
     for (uint64_t i = 0; i < data_size; i+=8) 
     {
