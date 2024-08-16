@@ -1,7 +1,7 @@
 #include <iostream>
 #include <functional>
 
-#include <include/perfcpp/event_counter.h>
+#include "include/perfcpp/event_counter.h"
 #include "generate_data.hpp"
 #include "kernels/avx2.h"
 #include "kernels/scalar.h"
