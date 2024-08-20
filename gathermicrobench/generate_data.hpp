@@ -1,7 +1,7 @@
 #include "benchmark_params.hpp"
 #include <algorithm>
 
-#define SIZE_8KB   8000
+#define SIZE_8KB   12000
 #define SIZE_1MB   1000000
 #define SIZE_16MB  16000000
 #define SIZE_256MB 256000000
@@ -153,8 +153,7 @@ void init_data_32bits(int32_t* data, int64_t data_size, bench_params_t params)
     const int stride = params.stride;
     switch (params.bench_algo) 
     {
-        case RANDOM_ALIGNED:   generate_data_random_32bits(data, data_size);         break;
-        case RANDOM_UNALIGNED: generate_data_random_32bits(data, data_size);         break;
+        case RANDOM:           generate_data_random_32bits(data, data_size);         break;
         case STRIDE:           generate_data_stride_32bits(data, data_size, stride); break;
         case STRIDE_2EQUAL:    generate_data_stride_32bits(data, data_size, stride); break;
         case STRIDE_4EQUAL:    generate_data_stride_32bits(data, data_size, stride); break;
@@ -171,8 +170,7 @@ void init_data_64bits(int64_t* data, int64_t data_size, bench_params_t params)
     const int stride = params.stride;
     switch (params.bench_algo) 
     {
-        case RANDOM_ALIGNED:   generate_data_random_64bits(data, data_size);         break;
-        case RANDOM_UNALIGNED: generate_data_random_64bits(data, data_size);         break;
+        case RANDOM:           generate_data_random_64bits(data, data_size);         break;
         case STRIDE:           generate_data_stride_64bits(data, data_size, stride); break;
         case STRIDE_2EQUAL:    generate_data_stride_64bits(data, data_size, stride); break;
         case STRIDE_4EQUAL:    generate_data_stride_64bits(data, data_size, stride); break;

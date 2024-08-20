@@ -11,8 +11,7 @@ typedef enum {
 
 
 typedef enum {
-    RANDOM_ALIGNED,
-    RANDOM_UNALIGNED,
+    RANDOM,
     STRIDE,
     STRIDE_2EQUAL,
     STRIDE_4EQUAL,
@@ -45,9 +44,11 @@ typedef struct {
     int     stride; 
 } bench_params_t; 
 
+
 const std::vector<std::string> benchmark_names = {
-    "RANDOM_ALIGNED", "RANDOM_UNALIGNED", "STRIDE", "STRIDE_2EQUAL", "STRIDE_4EQUAL", "ALL_SAME", "LOAD", "SCALAR_RANDOM"
+    "RANDOM", "STRIDE", "STRIDE_2EQUAL", "STRIDE_4EQUAL", "ALL_SAME", "LOAD", "SCALAR_RANDOM"
 };
+
 
 bench_params_t bench_default_params(void)
 {
@@ -56,7 +57,7 @@ bench_params_t bench_default_params(void)
         .bench_algo = ALL_SAME,
         .data_type  = INT32_DATA,
         .simd_type  = REG_128BIT,
-        .iters      = 1000000,
+        .iters      = 750000,
         .stride     = 1
     };
 }

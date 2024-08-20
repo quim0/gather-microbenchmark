@@ -30,8 +30,7 @@ int string_to_value(std::string value, std::string param)
 
     if (param == "benchmark")
     {
-        if      (value == "RANDOM_UNALIGNED") return RANDOM_UNALIGNED;
-        else if (value == "RANDOM_ALIGNED")   return RANDOM_ALIGNED;
+        if      (value == "RANDOM")           return RANDOM;
         else if (value == "STRIDE")           return STRIDE;
         else if (value == "STRIDE_2EQUAL")    return STRIDE_2EQUAL; 
         else if (value == "STRIDE_4EQUAL")    return STRIDE_4EQUAL; 
@@ -41,8 +40,8 @@ int string_to_value(std::string value, std::string param)
         else if (value == "LOAD")             return LOAD; 
         else 
         {
-           std::cout << "Unknown benchmark: Initializing the memory-size to RANDOM_UNALIGNED" << std::endl;
-           return RANDOM_UNALIGNED;
+           std::cout << "Unknown benchmark: Initializing the memory-size to RANDOM" << std::endl;
+           return RANDOM;
         }
     } 
 

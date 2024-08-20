@@ -3,57 +3,60 @@
 
 #include "include/perfcpp/event_counter.h"
 #include "generate_data.hpp"
+#include "kernels/sse.h"
+#include "kernels/avx512.h"
 #include "kernels/avx2.h"
 #include "kernels/scalar.h"
 
 
-std::function<void(int32_t*, uint64_t, int)> select_benchmark_avx2_32bits(bench_params_t params)
-{
-    switch (params.bench_algo) 
-    {
-        case RANDOM_ALIGNED:   return avx2_gather32_kernel;
-        case RANDOM_UNALIGNED: return avx2_gather32_kernel;
-        case STRIDE:           return avx2_gather32_stride_kernel;
-        case STRIDE_2EQUAL:    return avx2_gather32_stride_2equal_kernel;
-        case STRIDE_4EQUAL:    return avx2_gather32_stride_4equal_kernel;
-        case ALL_SAME:         return avx2_gather32_all_same_kernel;
-        case LOAD:             return avx2_256_loadu;
-        case SCALAR_RANDOM:    return scalar_gather32_kernel;
-        default:               return avx2_gather32_kernel;
-    }
-}
-  /*
-std::function<void(int64_t*, uint64_t, int)> select_benchmark_avx2_32bits(bench_params_t params)
+std::function<void(int32_t*, uint64_t, int)> select_simd_benchmark_32bits(bench_params_t params)
 {
   
     switch (params.bench_algo) 
     {
-        case RANDOM_ALIGNED:   return avx2_gather32_kernel;
-        case RANDOM_UNALIGNED: return avx2_gather32_kernel;
-        case STRIDE:           return avx2_gather32_stride_kernel;
-        case STRIDE_2EQUAL:    return avx2_gather32_stride_2equal_kernel;
-        case STRIDE_4EQUAL:    return avx2_gather32_stride_4equal_kernel;
-        case ALL_SAME:         return avx2_gather32_all_same_kernel;
-        case LOAD:             return avx2_256_loadu;
-        case SCALAR_RANDOM:    return scalar_gather32_kernel;
-        default:               return avx2_gather32_kernel;
+        case RANDOM:   
+        if (params.simd_type == REG_512BIT) return avx2_gather32_kernel;
+        if (params.simd_type == REG_256BIT) return avx2_gather32_kernel;
+        else                                return sse_gather32_kernel;
+        case STRIDE: 
+        if (params.simd_type == REG_512BIT) return avx2_gather32_stride_kernel;
+        if (params.simd_type == REG_256BIT) return avx2_gather32_stride_kernel;
+        else                                return sse_gather32_stride_kernel;
+        case STRIDE_2EQUAL:    
+        if (params.simd_type == REG_512BIT) return avx2_gather32_stride_2equal_kernel;
+        if (params.simd_type == REG_256BIT) return avx2_gather32_stride_2equal_kernel;
+        else                                return sse_gather32_stride_2equal_kernel;
+        case STRIDE_4EQUAL:    
+        if (params.simd_type == REG_512BIT) return avx2_gather32_stride_4equal_kernel;
+        if (params.simd_type == REG_256BIT) return avx2_gather32_stride_4equal_kernel;
+        else                                return sse_gather32_all_same_kernel;
+        case ALL_SAME:         
+        if (params.simd_type == REG_512BIT) return avx2_gather32_all_same_kernel;
+        if (params.simd_type == REG_256BIT) return avx2_gather32_all_same_kernel;
+        else                                return sse_gather32_all_same_kernel;
+        case LOAD:             
+        if (params.simd_type == REG_512BIT) return avx2_256_loadu;
+        if (params.simd_type == REG_256BIT) return avx2_256_loadu;
+        else                                return sse_128_loadu_32;
+        case SCALAR_RANDOM:                 return scalar_gather32_kernel;
+        default:                            return sse_gather32_kernel;
     }
-}*/
+}
 
 std::vector<std::function<void(int32_t*, uint64_t, int)>> select_simd_all_benchmark_32bits(bench_params_t params)
 {
     std::vector<std::function<void(int32_t*, uint64_t, int)>> benchmarks_r128 = { 
-        avx2_gather32_kernel, avx2_gather32_kernel, avx2_gather32_stride_kernel, avx2_gather32_stride_2equal_kernel, 
+        sse_gather32_kernel, sse_gather32_stride_kernel, sse_gather32_stride_2equal_kernel, 
         avx2_gather32_stride_4equal_kernel, avx2_gather32_all_same_kernel, avx2_256_loadu, scalar_gather32_kernel
     }; 
 
     std::vector<std::function<void(int32_t*, uint64_t, int)>> benchmarks_r256 = { 
-        avx2_gather32_kernel, avx2_gather32_kernel, avx2_gather32_stride_kernel, avx2_gather32_stride_2equal_kernel, 
-        avx2_gather32_stride_4equal_kernel, avx2_gather32_all_same_kernel, avx2_256_loadu, scalar_gather32_kernel
+        avx2_gather32_kernel, avx2_gather32_stride_kernel, avx2_gather32_stride_2equal_kernel, 
+        sse_gather32_all_same_kernel, sse_gather32_all_same_kernel, sse_128_loadu_32, scalar_gather32_kernel
     }; 
 
     std::vector<std::function<void(int32_t*, uint64_t, int)>> benchmarks_r512 = { 
-        avx2_gather32_kernel, avx2_gather32_kernel, avx2_gather32_stride_kernel, avx2_gather32_stride_2equal_kernel, 
+        avx2_gather32_kernel, avx2_gather32_stride_kernel, avx2_gather32_stride_2equal_kernel, 
         avx2_gather32_stride_4equal_kernel, avx2_gather32_all_same_kernel, avx2_256_loadu, scalar_gather32_kernel
     }; 
     
@@ -65,60 +68,6 @@ std::vector<std::function<void(int32_t*, uint64_t, int)>> select_simd_all_benchm
         default:         return benchmarks_r128;
     }
 }
-
-/*
-std::vector<std::function<void(int64_t*, uint64_t, int)>> select_simd_all_benchmark_64bits(bench_params_t params)
-{
-    
-    std::vector<std::function<void(int64_t*, uint64_t, int)>> benchmarks_r128; = { 
-        avx2_gather32_kernel, avx2_gather32_kernel, avx2_gather32_stride_kernel, avx2_gather32_stride_2equal_kernel, 
-        avx2_gather32_stride_4equal_kernel, avx2_gather32_all_same_kernel, avx2_256_loadu, scalar_gather32_kernel
-    }; 
-
-    std::vector<std::function<void(int64_t*, uint64_t, int)>> benchmarks_r256; = { 
-        avx2_gather32_kernel, avx2_gather32_kernel, avx2_gather32_stride_kernel, avx2_gather32_stride_2equal_kernel, 
-        avx2_gather32_stride_4equal_kernel, avx2_gather32_all_same_kernel, avx2_256_loadu, scalar_gather32_kernel
-    }; 
-
-    std::vector<std::function<void(int64_t*, uint64_t, int)>> benchmarks_r512; = { 
-        avx2_gather32_kernel, avx2_gather32_kernel, avx2_gather32_stride_kernel, avx2_gather32_stride_2equal_kernel, 
-        avx2_gather32_stride_4equal_kernel, avx2_gather32_all_same_kernel, avx2_256_loadu, scalar_gather32_kernel
-    }; 
-    
-    switch (params.simd_type)
-    {
-        case REG_128BIT: return benchmarks_r128; 
-        case REG_256BIT: return benchmarks_r256;
-        case REG_512BIT: return benchmarks_r512;
-        default:         return benchmarks_r128;
-    }
-   
-}
-
-*/
-
-std::function<void(int32_t*, uint64_t, int)> select_simd_benchmark_32bits(bench_params_t params)
-{
-    switch(params.simd_type)
-    {
-        case REG_128BIT: return select_benchmark_avx2_32bits(params);
-        case REG_256BIT: return select_benchmark_avx2_32bits(params);
-        case REG_512BIT: return select_benchmark_avx2_32bits(params);
-        default:         return select_benchmark_avx2_32bits(params);
-    }
-}
-
-/*
-std::function<void(int64_t*, uint64_t, int)> select_simd_benchmark_64bits(bench_params_t params)
-{
-    switch(params.simd_type)
-    {
-        case REG_128BIT: return select_benchmark_avx2_64bits(params);
-        case REG_256BIT: return select_benchmark_avx2_64bits(params);
-        case REG_512BIT: return select_benchmark_avx2_64bits(params);
-        default:         return select_benchmark_avx2_64bits(params);
-    }
-}*/
 
 
 void benchmark_run_64bits(bench_params_t params)
