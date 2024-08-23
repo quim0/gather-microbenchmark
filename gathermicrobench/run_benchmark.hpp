@@ -15,27 +15,27 @@ std::function<void(int32_t*, uint64_t, int)> select_simd_benchmark_32bits(bench_
     switch (params.bench_algo) 
     {
         case RANDOM:   
-        if (params.simd_type == REG_512BIT) return avx2_gather32_kernel;
+        if (params.simd_type == REG_512BIT) return avx512_gather32_kernel;
         if (params.simd_type == REG_256BIT) return avx2_gather32_kernel;
         else                                return sse_gather32_kernel;
         case STRIDE: 
-        if (params.simd_type == REG_512BIT) return avx2_gather32_stride_kernel;
+        if (params.simd_type == REG_512BIT) return avx512_gather32_stride_kernel;
         if (params.simd_type == REG_256BIT) return avx2_gather32_stride_kernel;
         else                                return sse_gather32_stride_kernel;
         case STRIDE_2EQUAL:    
-        if (params.simd_type == REG_512BIT) return avx2_gather32_stride_2equal_kernel;
+        if (params.simd_type == REG_512BIT) return avx512_gather32_stride_2equal_kernel;
         if (params.simd_type == REG_256BIT) return avx2_gather32_stride_2equal_kernel;
         else                                return sse_gather32_stride_2equal_kernel;
         case STRIDE_4EQUAL:    
-        if (params.simd_type == REG_512BIT) return avx2_gather32_stride_4equal_kernel;
+        if (params.simd_type == REG_512BIT) return avx512_gather32_stride_4equal_kernel;
         if (params.simd_type == REG_256BIT) return avx2_gather32_stride_4equal_kernel;
         else                                return sse_gather32_all_same_kernel;
         case ALL_SAME:         
-        if (params.simd_type == REG_512BIT) return avx2_gather32_all_same_kernel;
+        if (params.simd_type == REG_512BIT) return avx512_gather32_all_same_kernel;
         if (params.simd_type == REG_256BIT) return avx2_gather32_all_same_kernel;
         else                                return sse_gather32_all_same_kernel;
         case LOAD:             
-        if (params.simd_type == REG_512BIT) return avx2_256_loadu;
+        if (params.simd_type == REG_512BIT) return avx_512_loadu;
         if (params.simd_type == REG_256BIT) return avx2_256_loadu;
         else                                return sse_128_loadu_32;
         case SCALAR_RANDOM:                 return scalar_gather32_kernel;
@@ -56,8 +56,8 @@ std::vector<std::function<void(int32_t*, uint64_t, int)>> select_simd_all_benchm
     }; 
 
     std::vector<std::function<void(int32_t*, uint64_t, int)>> benchmarks_r512 = { 
-        avx2_gather32_kernel, avx2_gather32_stride_kernel, avx2_gather32_stride_2equal_kernel, 
-        avx2_gather32_stride_4equal_kernel, avx2_gather32_all_same_kernel, avx2_256_loadu, scalar_gather32_kernel
+        avx512_gather32_kernel, avx512_gather32_stride_kernel, avx512_gather32_stride_2equal_kernel, 
+        avx512_gather32_stride_4equal_kernel, avx512_gather32_all_same_kernel, avx_512_loadu, scalar_gather32_kernel
     }; 
     
     switch (params.simd_type)
@@ -216,6 +216,7 @@ void benchmark_run_32bits(bench_params_t params)
 
 void benchmark_run(bench_params_t params)
 {
+    std::cout << "Start running benchmark\n";
     if (params.data_type == INT32_DATA) benchmark_run_32bits(params);
     else                                benchmark_run_64bits(params);
 }

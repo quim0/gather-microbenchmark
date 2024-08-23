@@ -129,7 +129,7 @@ static void avx512_gather32_stride_kernel (
     );
 
 
-    for (uint64_t i = 64; i < data_size; i+=8) 
+    for (uint64_t i = 64; i < data_size; i+=16) 
     {
         random_simd1 = _mm512_i32gather_epi32 (random_simd1, (int const*)&data[0], sizeof(int));
         random_simd2 = _mm512_i32gather_epi32 (random_simd2, (int const*)&data[0], sizeof(int));
@@ -202,7 +202,7 @@ static void avx512_gather32_stride_2equal_kernel (
          data[stride+112],  data[stride+112],    data[112],  data[112]
     ); 
 
-    for (uint64_t i = 64; i < data_size; i+=8) 
+    for (uint64_t i = 64; i < data_size; i+=16) 
     {
         random_simd1 = _mm512_i32gather_epi32 (random_simd1, (int const*)&data[0], sizeof(int));
         random_simd2 = _mm512_i32gather_epi32 (random_simd2, (int const*)&data[0], sizeof(int));
@@ -276,7 +276,7 @@ static void avx512_gather32_stride_4equal_kernel (
     ); 
 
     
-    for (uint64_t i = 64; i < data_size; i+=8) 
+    for (uint64_t i = 64; i < data_size; i+=16) 
     {
         random_simd1 = _mm512_i32gather_epi32 (random_simd1, (int const*)&data[0], sizeof(int));
         random_simd2 = _mm512_i32gather_epi32 (random_simd2, (int const*)&data[0], sizeof(int));
@@ -305,7 +305,7 @@ static void avx512_gather32_all_same_kernel (
     __m512i volatile random_simd6 = _mm512_set1_epi32(data[5]);
     __m512i volatile random_simd7 = _mm512_set1_epi32(data[6]);
     __m512i volatile random_simd8 = _mm512_set1_epi32(data[7]);
-    for (uint64_t i = 64; i < data_size; i+=8) 
+    for (uint64_t i = 64; i < data_size; i+=16) 
     {
         random_simd1 = _mm512_i32gather_epi32 (random_simd1, (int const*)&data[0], sizeof(int));
         random_simd2 = _mm512_i32gather_epi32 (random_simd2, (int const*)&data[0], sizeof(int));

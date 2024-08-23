@@ -53,11 +53,11 @@ const std::vector<std::string> benchmark_names = {
 bench_params_t bench_default_params(void)
 {
     return (bench_params_t){
-        .mm_type    = L1_SIZE,
-        .bench_algo = ALL_SAME,
-        .data_type  = INT32_DATA,
-        .simd_type  = REG_128BIT,
-        .iters      = 750000,
-        .stride     = 1
+        .mm_type     = L1_SIZE,
+        .bench_algo  = ALL_SAME,
+        .data_type   = INT32_DATA,
+        .simd_type   = REG_128BIT,
+        .iters       = 750000,
+        .stride      = 1, 
     };
 }

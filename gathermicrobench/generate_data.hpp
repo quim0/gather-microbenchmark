@@ -11,7 +11,7 @@ int64_t get_data_size(bench_params_t params)
 {
     const memory_size_t  mm_type = params.mm_type;
     const data_bytes_t data_type = params.data_type;
-    const int64_t  bytes_of_data = (data_type == INT32_DATA) ? sizeof(int32_t) : sizeof (int64_t);
+    const int64_t  bytes_of_data = (data_type == INT32_DATA) ? sizeof(int32_t) : sizeof(int64_t);
 
     switch(mm_type)
     {
