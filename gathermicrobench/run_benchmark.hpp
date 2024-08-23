@@ -47,12 +47,12 @@ std::vector<std::function<void(int32_t*, uint64_t, int)>> select_simd_all_benchm
 {
     std::vector<std::function<void(int32_t*, uint64_t, int)>> benchmarks_r128 = { 
         sse_gather32_kernel, sse_gather32_stride_kernel, sse_gather32_stride_2equal_kernel, 
-        avx2_gather32_stride_4equal_kernel, avx2_gather32_all_same_kernel, avx2_256_loadu, scalar_gather32_kernel
+        sse_gather32_all_same_kernel, sse_gather32_all_same_kernel, sse_128_loadu_32, scalar_gather32_kernel
     }; 
 
     std::vector<std::function<void(int32_t*, uint64_t, int)>> benchmarks_r256 = { 
         avx2_gather32_kernel, avx2_gather32_stride_kernel, avx2_gather32_stride_2equal_kernel, 
-        sse_gather32_all_same_kernel, sse_gather32_all_same_kernel, sse_128_loadu_32, scalar_gather32_kernel
+        avx2_gather32_stride_4equal_kernel, avx2_gather32_all_same_kernel, avx2_256_loadu, scalar_gather32_kernel
     }; 
 
     std::vector<std::function<void(int32_t*, uint64_t, int)>> benchmarks_r512 = { 

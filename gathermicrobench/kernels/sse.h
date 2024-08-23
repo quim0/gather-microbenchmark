@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <immintrin.h>
 
-static __attribute__((always_inline)) void sse_128_loadu_32 (
+static void sse_128_loadu_32 (
     const int32_t* const data,
     const uint64_t data_size,
     const int stride
@@ -40,7 +40,7 @@ static __attribute__((always_inline)) void sse_128_loadu_32 (
     (void)random_simd7; (void)random_simd8; 
 }
 
-static __attribute__((always_inline)) void sse_gather32_kernel (
+static void sse_gather32_kernel (
     const int32_t* const data,
     const uint64_t data_size,
     const int stride
@@ -68,7 +68,7 @@ static __attribute__((always_inline)) void sse_gather32_kernel (
     (void)stride; 
 }
 
-static __attribute__((always_inline)) void sse_gather32_stride_kernel (
+static void sse_gather32_stride_kernel (
     const int32_t* const data,
     const uint64_t data_size, 
     const int stride
@@ -120,7 +120,7 @@ static __attribute__((always_inline)) void sse_gather32_stride_kernel (
     }
 }
 
-static __attribute__((always_inline)) void sse_gather32_stride_2equal_kernel (
+static void sse_gather32_stride_2equal_kernel (
     const int32_t* const data,
     const uint64_t data_size, 
     const int stride
@@ -172,7 +172,7 @@ static __attribute__((always_inline)) void sse_gather32_stride_2equal_kernel (
     }
 }
 
-static __attribute__((always_inline)) void sse_gather32_all_same_kernel (
+static void sse_gather32_all_same_kernel (
     const int32_t* const data,
     const uint64_t data_size, 
     const int stride

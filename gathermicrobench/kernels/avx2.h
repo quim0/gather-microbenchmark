@@ -4,7 +4,7 @@
 #include <stdint.h>
 #include <immintrin.h>
 
-static __attribute__((always_inline)) void avx2_256_loadu (
+static void avx2_256_loadu (
     const int32_t* const data,
     const uint64_t data_size,
     const int stride
@@ -40,7 +40,7 @@ static __attribute__((always_inline)) void avx2_256_loadu (
     (void)random_simd7; (void)random_simd8; 
 }
 
-static __attribute__((always_inline)) void avx2_gather32_kernel (
+static void avx2_gather32_kernel (
     const int32_t* const data,
     const uint64_t data_size,
     const int stride
@@ -68,7 +68,7 @@ static __attribute__((always_inline)) void avx2_gather32_kernel (
     (void)stride; 
 }
 
-static __attribute__((always_inline)) void avx2_gather32_stride_kernel (
+static void avx2_gather32_stride_kernel (
     const int32_t* const data,
     const uint64_t data_size, 
     const int stride
@@ -120,7 +120,7 @@ static __attribute__((always_inline)) void avx2_gather32_stride_kernel (
     }
 }
 
-static __attribute__((always_inline)) void avx2_gather32_stride_2equal_kernel (
+static void avx2_gather32_stride_2equal_kernel (
     const int32_t* const data,
     const uint64_t data_size, 
     const int stride
@@ -173,7 +173,7 @@ static __attribute__((always_inline)) void avx2_gather32_stride_2equal_kernel (
 }
 
 
-static __attribute__((always_inline)) void avx2_gather32_stride_4equal_kernel (
+static void avx2_gather32_stride_4equal_kernel (
     const int32_t* const data,
     const uint64_t data_size, 
     const int stride
@@ -225,7 +225,7 @@ static __attribute__((always_inline)) void avx2_gather32_stride_4equal_kernel (
 }
 
 
-static __attribute__((always_inline)) void avx2_gather32_all_same_kernel (
+static void avx2_gather32_all_same_kernel (
     const int32_t* const data,
     const uint64_t data_size, 
     const int stride

@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-static __attribute__((always_inline)) void scalar_gather32_kernel (
+static void scalar_gather32_kernel (
     const int32_t* const data,
     const uint64_t data_size,
     const int stride
