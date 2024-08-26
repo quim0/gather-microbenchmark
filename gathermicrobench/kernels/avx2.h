@@ -1,6 +1,8 @@
 #ifndef AVX2_GATHER_BENCH_H_
 #define AVX2_GATHER_BENCH_H_
 
+
+#if __AVX2__
 #include <stdint.h>
 #include <immintrin.h>
 
@@ -252,6 +254,5 @@ static void avx2_gather32_all_same_kernel (
         random_simd8 = _mm256_i32gather_epi32 ((int const*)&data[0], random_simd8, sizeof(int));
     }
 }
-
-
+#endif // __AVX2__
 #endif // AVX2_GATHER_BENCH_H_

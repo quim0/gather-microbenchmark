@@ -1,6 +1,7 @@
 #ifndef AVX512_GATHER_BENCH_H_
 #define AVX512_GATHER_BENCH_H_
 
+#if __AVX2__
 #include <stdint.h>
 #include <immintrin.h>
 
@@ -318,5 +319,5 @@ static void avx512_gather32_all_same_kernel (
     }
 }
 
-
+#endif // __AVX512F__
 #endif // AVX512_GATHER_BENCH_H_

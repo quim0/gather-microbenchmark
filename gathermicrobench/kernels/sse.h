@@ -1,6 +1,7 @@
 #ifndef SSE_GATHER_BENCH_H_
 #define SSE_GATHER_BENCH_H_
 
+#if __AVX2__
 #include <stdint.h>
 #include <immintrin.h>
 
@@ -202,5 +203,5 @@ static void sse_gather32_all_same_kernel (
     }
 }
 
-
+#endif // __AVX2__
 #endif // SSE_GATHER_BENCH_H_
