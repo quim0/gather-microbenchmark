@@ -1,12 +1,12 @@
 #include <iostream>
 #include <functional>
 
-#include "include/perfcpp/event_counter.h"
-#include "generate_data.hpp"
-#include "kernels/sse.h"
-#include "kernels/avx512.h"
-#include "kernels/avx2.h"
-#include "kernels/scalar.h"
+#include <perfcpp/event_counter.h>
+#include <gathermicrobench/generate_data.hpp>
+#include <gathermicrobench/kernels/sse.h>
+#include <gathermicrobench/kernels/avx512.h>
+#include <gathermicrobench/kernels/avx2.h>
+#include <gathermicrobench/kernels/scalar.h>
 
 #if __AVX2__
 
@@ -43,7 +43,7 @@ std::function<void(int32_t*, uint64_t, int)> select_simd_benchmark_32bits(bench_
             default:                            return sse_gather32_kernel;
         }
     #else
-        #warning No AVX512 support using AVX2 instead
+        #warning No AVX512 support, using AVX2 instead
         switch (params.bench_algo) 
         {
             case RANDOM:      
@@ -95,7 +95,7 @@ std::vector<std::function<void(int32_t*, uint64_t, int)>> select_simd_all_benchm
             avx512_gather32_stride_4equal_kernel, avx512_gather32_all_same_kernel, avx_512_loadu, scalar_gather32_kernel
         }; 
     #else
-        #warning No AVX512 support using AVX2 instead
+        #warning No AVX512 support, using AVX2 instead
         std::vector<std::function<void(int32_t*, uint64_t, int)>> benchmarks_r512 = { 
         avx2_gather32_kernel, avx2_gather32_stride_kernel, avx2_gather32_stride_2equal_kernel, 
         avx2_gather32_stride_4equal_kernel, avx2_gather32_all_same_kernel, avx2_256_loadu, scalar_gather32_kernel

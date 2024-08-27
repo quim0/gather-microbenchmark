@@ -1,2 +1,5 @@
-gather_microbench
 .vscode/
+build/
+bin/
+*.a
+*.o

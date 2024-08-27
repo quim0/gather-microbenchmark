@@ -1,4 +1,4 @@
-#include "benchmark_params.hpp"
+#include <gathermicrobench/benchmark_params.hpp>
 #include <algorithm>
 
 #define SIZE_8KB   12000

@@ -1,5 +1,5 @@
-#include "include/cxxopts.hpp"
-#include "run_benchmark.hpp"
+#include <cxxopts/cxxopts.hpp>
+#include <gathermicrobench/run_benchmark.hpp>
 
 int string_to_value(std::string value, std::string param)
 {    
