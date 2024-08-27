@@ -22,6 +22,19 @@ static void scalar_gather32_kernel (
     int32_t volatile gather4_index1 = 24, gather4_index2 = 25, gather4_index3 = 26, gather4_index4 = 27;
     int32_t volatile gather4_index5 = 28, gather4_index6 = 29, gather4_index7 = 30, gather4_index8 = 31;
 
+    int32_t volatile gather5_index1 = 32, gather5_index2 = 33, gather5_index3 = 34, gather5_index4 = 35;
+    int32_t volatile gather5_index5 = 36, gather5_index6 = 37, gather5_index7 = 38, gather5_index8 = 39;
+    
+    int32_t volatile gather6_index1 = 40, gather6_index2 = 41, gather6_index3 = 42, gather6_index4 = 43;
+    int32_t volatile gather6_index5 = 44, gather6_index6 = 45, gather6_index7 = 46, gather6_index8 = 47;
+    
+    int32_t volatile gather7_index1 = 48, gather7_index2 = 49, gather7_index3 = 50, gather7_index4 = 51;
+    int32_t volatile gather7_index5 = 52, gather7_index6 = 53, gather7_index7 = 54, gather7_index8 = 55;
+   
+    int32_t volatile gather8_index1 = 56, gather8_index2 = 57, gather8_index3 = 58, gather8_index4 = 59;
+    int32_t volatile gather8_index5 = 60, gather8_index6 = 61, gather8_index7 = 62, gather8_index8 = 63;
+
+
     for (uint64_t i = 0; i < data_size; i+=8) 
     {
         //gather1
@@ -47,6 +60,30 @@ static void scalar_gather32_kernel (
         gather4_index3 = data[gather4_index3]; gather4_index4 = data[gather4_index4];
         gather4_index5 = data[gather4_index5]; gather4_index6 = data[gather4_index6];
         gather4_index7 = data[gather4_index7]; gather4_index8 = data[gather4_index8];
+        
+        //gather5
+        gather5_index1 = data[gather5_index1]; gather5_index2 = data[gather5_index2];
+        gather5_index3 = data[gather5_index3]; gather5_index4 = data[gather5_index4];
+        gather5_index5 = data[gather5_index5]; gather5_index6 = data[gather5_index6];
+        gather5_index7 = data[gather5_index7]; gather5_index8 = data[gather5_index8];
+
+        //gather6
+        gather6_index1 = data[gather6_index1]; gather6_index2 = data[gather6_index2];
+        gather6_index3 = data[gather6_index3]; gather6_index4 = data[gather6_index4];
+        gather6_index5 = data[gather6_index5]; gather6_index6 = data[gather6_index6];
+        gather6_index7 = data[gather6_index7]; gather6_index8 = data[gather6_index8];
+
+        //gather7
+        gather7_index1 = data[gather7_index1]; gather7_index2 = data[gather7_index2];
+        gather7_index3 = data[gather7_index3]; gather7_index4 = data[gather7_index4];
+        gather7_index5 = data[gather7_index5]; gather7_index6 = data[gather7_index6];
+        gather7_index7 = data[gather7_index7]; gather7_index8 = data[gather7_index8];
+
+        //gather8
+        gather8_index1 = data[gather8_index1]; gather8_index2 = data[gather8_index2];
+        gather8_index3 = data[gather8_index3]; gather8_index4 = data[gather8_index4];
+        gather8_index5 = data[gather8_index5]; gather8_index6 = data[gather8_index6];
+        gather8_index7 = data[gather8_index7]; gather8_index8 = data[gather8_index8];
     } 
 }
 
