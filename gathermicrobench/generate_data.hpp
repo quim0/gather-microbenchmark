@@ -1,9 +1,9 @@
 #include <gathermicrobench/benchmark_params.hpp>
 #include <algorithm>
 
-#define SIZE_8KB   12000
+#define SIZE_12KB   12000
 #define SIZE_1MB   1000000
-#define SIZE_16MB  16000000
+#define SIZE_10MB  10000000
 #define SIZE_256MB 256000000
 
 
@@ -15,11 +15,11 @@ int64_t get_data_size(bench_params_t params)
 
     switch(mm_type)
     {
-        case L1_SIZE: return SIZE_8KB   / bytes_of_data; 
+        case L1_SIZE: return SIZE_12KB   / bytes_of_data; 
         case L2_SIZE: return SIZE_1MB   / bytes_of_data; 
-        case L3_SIZE: return SIZE_16MB  / bytes_of_data; 
+        case L3_SIZE: return SIZE_10MB  / bytes_of_data; 
         case MM_SIZE: return SIZE_256MB / bytes_of_data; 
-        default:      return SIZE_8KB   / bytes_of_data; 
+        default:      return SIZE_12KB   / bytes_of_data; 
     }
 }
 
