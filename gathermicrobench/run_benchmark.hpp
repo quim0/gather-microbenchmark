@@ -133,7 +133,11 @@ void benchmark_run_64bits(bench_params_t params)
             if (!event_counter.add({ "instructions",
                                     "cycles",
                                     "branches",
-                                    "cycles-per-instruction" })) {
+                                    "cycles-per-instruction",
+                                    "cache-misses",
+                                    "cache-references",
+                                    "L1-dcache-load-misses",
+                                    "L1-dcache-loads"})) {
                 std::cerr << "Could not add performance counters." << std::endl;
             }
             
@@ -162,12 +166,17 @@ void benchmark_run_64bits(bench_params_t params)
         
         auto counter_definitions = perf::CounterDefinition{};
         auto event_counter       = perf::EventCounter{counter_definitions};
-        if (!event_counter.add({ "instructions",
-                                "cycles",
-                                "branches",
-                                "cycles-per-instruction" })) {
-            std::cerr << "Could not add performance counters." << std::endl;
-        }
+            if (!event_counter.add({ "instructions",
+                                    "cycles",
+                                    "branches",
+                                    "cycles-per-instruction",
+                                    "cache-misses",
+                                    "cache-references",
+                                    "L1-dcache-load-misses",
+                                    "L1-dcache-loads"})) {
+                std::cerr << "Could not add performance counters." << std::endl;
+            }
+            
 
         event_counter.start();
         for (int i = 0; i < iters; i++)
@@ -205,9 +214,14 @@ void benchmark_run_32bits(bench_params_t params)
             if (!event_counter.add({ "instructions",
                                     "cycles",
                                     "branches",
-                                    "cycles-per-instruction" })) {
+                                    "cycles-per-instruction",
+                                    "cache-misses",
+                                    "cache-references",
+                                    "L1-dcache-load-misses",
+                                    "L1-dcache-loads"})) {
                 std::cerr << "Could not add performance counters." << std::endl;
             }
+            
             
             event_counter.start();
             for (int i = 0; i < iters; i++)
@@ -237,9 +251,14 @@ void benchmark_run_32bits(bench_params_t params)
         if (!event_counter.add({ "instructions",
                                 "cycles",
                                 "branches",
-                                "cycles-per-instruction" })) {
+                                "cycles-per-instruction",
+                                "cache-misses",
+                                "cache-references",
+                                "L1-dcache-load-misses",
+                                "L1-dcache-loads"})) {
             std::cerr << "Could not add performance counters." << std::endl;
         }
+            
 
         event_counter.start();
         for (int i = 0; i < iters; i++)
