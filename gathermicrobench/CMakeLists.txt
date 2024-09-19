@@ -9,7 +9,7 @@ target_include_directories(gathermicrobench PRIVATE ${CMAKE_SOURCE_DIR}/)
 target_include_directories(gathermicrobench PRIVATE ${CMAKE_SOURCE_DIR}/external)
 target_link_libraries(gathermicrobench PRIVATE perf-cpp)
 
-target_compile_options(gathermicrobench PRIVATE -march=native)
+target_compile_options(gathermicrobench PRIVATE -march=native -O3)
 
 set_target_properties(gathermicrobench
     PROPERTIES

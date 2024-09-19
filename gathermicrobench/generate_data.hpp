@@ -113,8 +113,8 @@ void generate_data_random_64bits(int64_t* data, int64_t data_size)
 void generate_data_stride_64bits(int64_t* data, int64_t data_size, bench_params_t params)
 {
     const int stride = (params.bench_algo == LOAD) ? 1 : params.stride; 
-    const int multi  = (params.simd_type == REG_512BIT) ?  15 : (params.simd_type == REG_256BIT) ? 7 : 3; 
-    int stride_size  = stride * multi * 2 + 1; 
+    const int multi  = (params.simd_type == REG_512BIT) ?  7 : (params.simd_type == REG_256BIT) ? 3 : 1; 
+    int stride_size  = stride * multi + 1; 
     int v_size       = data_size / stride_size; 
 
     std::vector<std::vector<int64_t>> v_start; 
