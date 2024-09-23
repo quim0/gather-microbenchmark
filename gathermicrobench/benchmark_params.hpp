@@ -18,6 +18,7 @@ typedef enum {
     ALL_SAME,
     LOAD,
     SCALAR_RANDOM,
+    SCALAR_RANDOM_NOSPILLING,
     ALL
 } bench_algo_t; 
 
@@ -40,13 +41,13 @@ typedef struct {
     bench_algo_t  bench_algo; 
     data_bytes_t  data_type;
     simd_size_t   simd_type; 
-    int64_t iters;
-    int     stride; 
+    int64_t       iters;
+    int           stride; 
 } bench_params_t; 
 
 
 const std::vector<std::string> benchmark_names = {
-    "RANDOM", "STRIDE", "STRIDE_2EQUAL", "STRIDE_4EQUAL", "ALL_SAME", "LOAD", "SCALAR_RANDOM"
+    "RANDOM", "STRIDE", "STRIDE_2EQUAL", "STRIDE_4EQUAL", "ALL_SAME", "LOAD", "SCALAR_RANDOM", "SCALAR_RANDOM_NOSPILLING"
 };
 
 

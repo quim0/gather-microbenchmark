@@ -30,17 +30,18 @@ int string_to_value(std::string value, std::string param)
 
     if (param == "benchmark")
     {
-        if      (value == "RANDOM")           return RANDOM;
-        else if (value == "STRIDE")           return STRIDE;
-        else if (value == "STRIDE_2EQUAL")    return STRIDE_2EQUAL; 
-        else if (value == "STRIDE_4EQUAL")    return STRIDE_4EQUAL; 
-        else if (value == "ALL_SAME")         return ALL_SAME; 
-        else if (value == "ALL")              return ALL; 
-        else if (value == "SCALAR_RANDOM")    return SCALAR_RANDOM; 
-        else if (value == "LOAD")             return LOAD; 
+        if      (value == "RANDOM")                      return RANDOM;
+        else if (value == "STRIDE")                      return STRIDE;
+        else if (value == "STRIDE_2EQUAL")               return STRIDE_2EQUAL; 
+        else if (value == "STRIDE_4EQUAL")               return STRIDE_4EQUAL; 
+        else if (value == "ALL_SAME")                    return ALL_SAME; 
+        else if (value == "ALL")                         return ALL; 
+        else if (value == "SCALAR_RANDOM")               return SCALAR_RANDOM;
+        else if (value == "SCALAR_RANDOM_NOSPILLING")    return SCALAR_RANDOM; 
+        else if (value == "LOAD")                        return LOAD; 
         else 
         {
-           std::cout << "Unknown benchmark: Initializing the memory-size to RANDOM" << std::endl;
+           std::cout << "Unknown benchmark: Initializing the benchmark to RANDOM" << std::endl;
            return RANDOM;
         }
     } 
@@ -51,7 +52,7 @@ int string_to_value(std::string value, std::string param)
         else if (value == "INT64_DATA") return INT64_DATA;
         else 
         {
-           std::cout << "Unknown data-type: Initializing the memory-size to INT32_DATA" << std::endl;
+           std::cout << "Unknown data-type: Initializing the data-type to INT32_DATA" << std::endl;
            return INT32_DATA;
         }
     } 

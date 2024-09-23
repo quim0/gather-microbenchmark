@@ -4,6 +4,7 @@
 #if __AVX2__
 #include <stdint.h>
 #include <immintrin.h>
+#include "kernels_common.h"
 
 static void avx_512_loadu (
     const int32_t* const data,
@@ -11,15 +12,15 @@ static void avx_512_loadu (
     const int stride
     ) 
 {
-    __m512i volatile random_simd1, random_simd2;
-    __m512i volatile random_simd3, random_simd4;
-    __m512i volatile random_simd5, random_simd6;
-    __m512i volatile random_simd7, random_simd8;
-    int32_t index1 = 0, index2 = 1; 
-    int32_t index3 = 2, index4 = 3; 
-    int32_t index5 = 4, index6 = 5; 
-    int32_t index7 = 6, index8 = 7; 
-    for (uint64_t i = 64; i < data_size; i+=16) 
+    __m512i random_simd1, random_simd2;
+    __m512i random_simd3, random_simd4;
+    __m512i random_simd5, random_simd6;
+    __m512i random_simd7, random_simd8;
+    int32_t index1 = 0,  index2 = 16; 
+    int32_t index3 = 32, index4 = 48; 
+    int32_t index5 = 64, index6 = 80; 
+    int32_t index7 = 96, index8 = 112; 
+    for (uint64_t i = 0; i < data_size; i++) 
     {
         random_simd1 = _mm512_loadu_si512((__m512i*)&data[index1]);
         random_simd2 = _mm512_loadu_si512((__m512i*)&data[index2]);
@@ -34,11 +35,11 @@ static void avx_512_loadu (
         index5 = data[index5]; index6 = data[index6]; 
         index7 = data[index7]; index8 = data[index8];  
     }
-    (void)stride; 
-    (void)random_simd1; (void)random_simd2; 
-    (void)random_simd3; (void)random_simd4; 
-    (void)random_simd5; (void)random_simd6; 
-    (void)random_simd7; (void)random_simd8; 
+    unused(stride); 
+    do_not_optimize(random_simd1); do_not_optimize(random_simd2);
+    do_not_optimize(random_simd3); do_not_optimize(random_simd4);
+    do_not_optimize(random_simd5); do_not_optimize(random_simd6);
+    do_not_optimize(random_simd7); do_not_optimize(random_simd8);
 }
 
 static void avx512_gather32_kernel (
@@ -47,15 +48,15 @@ static void avx512_gather32_kernel (
     const int stride
     ) 
 {
-    __m512i volatile random_simd1 = _mm512_loadu_si512((__m512i*)&data[0]);
-    __m512i volatile random_simd2 = _mm512_loadu_si512((__m512i*)&data[16]);
-    __m512i volatile random_simd3 = _mm512_loadu_si512((__m512i*)&data[32]);
-    __m512i volatile random_simd4 = _mm512_loadu_si512((__m512i*)&data[48]);
-    __m512i volatile random_simd5 = _mm512_loadu_si512((__m512i*)&data[64]);
-    __m512i volatile random_simd6 = _mm512_loadu_si512((__m512i*)&data[80]);
-    __m512i volatile random_simd7 = _mm512_loadu_si512((__m512i*)&data[96]);
-    __m512i volatile random_simd8 = _mm512_loadu_si512((__m512i*)&data[112]);
-    for (uint64_t i = 64; i < data_size; i+=16) 
+    __m512i random_simd1 = _mm512_loadu_si512((__m512i*)&data[0]);
+    __m512i random_simd2 = _mm512_loadu_si512((__m512i*)&data[16]);
+    __m512i random_simd3 = _mm512_loadu_si512((__m512i*)&data[32]);
+    __m512i random_simd4 = _mm512_loadu_si512((__m512i*)&data[48]);
+    __m512i random_simd5 = _mm512_loadu_si512((__m512i*)&data[64]);
+    __m512i random_simd6 = _mm512_loadu_si512((__m512i*)&data[80]);
+    __m512i random_simd7 = _mm512_loadu_si512((__m512i*)&data[96]);
+    __m512i random_simd8 = _mm512_loadu_si512((__m512i*)&data[112]);
+    for (uint64_t i = 0; i < data_size; i++) 
     {
         random_simd1 = _mm512_i32gather_epi32 (random_simd1, (int const*)&data[0], sizeof(int));
         random_simd2 = _mm512_i32gather_epi32 (random_simd2, (int const*)&data[0], sizeof(int));
@@ -66,7 +67,11 @@ static void avx512_gather32_kernel (
         random_simd7 = _mm512_i32gather_epi32 (random_simd7, (int const*)&data[0], sizeof(int));
         random_simd8 = _mm512_i32gather_epi32 (random_simd8, (int const*)&data[0], sizeof(int));
     }
-    (void)stride; 
+    unused(stride); 
+    do_not_optimize(random_simd1); do_not_optimize(random_simd2);
+    do_not_optimize(random_simd3); do_not_optimize(random_simd4);
+    do_not_optimize(random_simd5); do_not_optimize(random_simd6);
+    do_not_optimize(random_simd7); do_not_optimize(random_simd8);
 }
 
 static void avx512_gather32_stride_kernel (
@@ -76,61 +81,61 @@ static void avx512_gather32_stride_kernel (
     ) 
 {
     
-    __m512i volatile random_simd1 = _mm512_set_epi32(
-        data[stride*15], data[stride*14], data[stride*13], data[stride*12], data[stride*11], data[stride*10], data[stride*9], data[stride*8],
-         data[stride*7],  data[stride*6],  data[stride*5],  data[stride*4],  data[stride*3],  data[stride*2],   data[stride], data[0]
+    __m512i random_simd1 = _mm512_set_epi32(
+        stride*15, stride*14, stride*13, stride*12, stride*11, stride*10, stride*9, stride*8,
+         stride*7,  stride*6,  stride*5,  stride*4,  stride*3,  stride*2,   stride, 0
     );
     
-    __m512i volatile random_simd2 = _mm512_set_epi32(
-        data[stride*15+16], data[stride*14+16], data[stride*13+16], data[stride*12+16], data[stride*11+16], data[stride*10+16], 
-         data[stride*9+16],  data[stride*8+16],  data[stride*7+16],  data[stride*6+16],  data[stride*5+16],  data[stride*4+16], 
-         data[stride*3+16],  data[stride*2+16],    data[stride+16],  data[16]
+    __m512i random_simd2 = _mm512_set_epi32(
+        stride*15+16, stride*14+16, stride*13+16, stride*12+16, stride*11+16, stride*10+16, 
+         stride*9+16,  stride*8+16,  stride*7+16,  stride*6+16,  stride*5+16,  stride*4+16, 
+         stride*3+16,  stride*2+16,    stride+16,  16
     );
 
 
-    __m512i volatile random_simd3 = _mm512_set_epi32(
-        data[stride*15+32], data[stride*14+32], data[stride*13+32], data[stride*12+32], data[stride*11+32], data[stride*10+32], 
-         data[stride*9+32],  data[stride*8+32],  data[stride*7+32],  data[stride*6+32],  data[stride*5+32],  data[stride*4+32], 
-         data[stride*3+32],  data[stride*2+32],    data[stride+32],  data[32]
+    __m512i random_simd3 = _mm512_set_epi32(
+        stride*15+32, stride*14+32, stride*13+32, stride*12+32, stride*11+32, stride*10+32, 
+         stride*9+32,  stride*8+32,  stride*7+32,  stride*6+32,  stride*5+32,  stride*4+32, 
+         stride*3+32,  stride*2+32,    stride+32,  32
     );
 
 
-    __m512i volatile random_simd4 = _mm512_set_epi32(
-        data[stride*15+48], data[stride*14+48], data[stride*13+48], data[stride*12+48], data[stride*11+48], data[stride*10+48], 
-         data[stride*9+48],  data[stride*8+48],  data[stride*7+48],  data[stride*6+48],  data[stride*5+48],  data[stride*4+48], 
-         data[stride*3+48],  data[stride*2+48],    data[stride+48],  data[48]
+    __m512i random_simd4 = _mm512_set_epi32(
+        stride*15+48, stride*14+48, stride*13+48, stride*12+48, stride*11+48, stride*10+48, 
+         stride*9+48,  stride*8+48,  stride*7+48,  stride*6+48,  stride*5+48,  stride*4+48, 
+         stride*3+48,  stride*2+48,    stride+48,  48
     );
 
 
-    __m512i volatile random_simd5 = _mm512_set_epi32(
-        data[stride*15+64], data[stride*14+64], data[stride*13+64], data[stride*12+64], data[stride*11+64], data[stride*10+64], 
-         data[stride*9+64],  data[stride*8+64],  data[stride*7+64],  data[stride*6+64],  data[stride*5+64],  data[stride*4+64], 
-         data[stride*3+64],  data[stride*2+64],    data[stride+64],  data[64]
+    __m512i random_simd5 = _mm512_set_epi32(
+        stride*15+64, stride*14+64, stride*13+64, stride*12+64, stride*11+64, stride*10+64, 
+         stride*9+64,  stride*8+64,  stride*7+64,  stride*6+64,  stride*5+64,  stride*4+64, 
+         stride*3+64,  stride*2+64,    stride+64,  64
     );
 
 
-    __m512i volatile random_simd6 = _mm512_set_epi32(
-        data[stride*15+80], data[stride*14+80], data[stride*13+80], data[stride*12+80], data[stride*11+80], data[stride*10+80], 
-         data[stride*9+80],  data[stride*8+80],  data[stride*7+80],  data[stride*6+80],  data[stride*5+80],  data[stride*4+80], 
-         data[stride*3+80],  data[stride*2+80],    data[stride+80],  data[80]
+    __m512i random_simd6 = _mm512_set_epi32(
+        stride*15+80, stride*14+80, stride*13+80, stride*12+80, stride*11+80, stride*10+80, 
+         stride*9+80,  stride*8+80,  stride*7+80,  stride*6+80, stride*5+80,  stride*4+80, 
+         stride*3+80,  stride*2+80,    stride+80,  80
     );
 
 
-    __m512i volatile random_simd7 = _mm512_set_epi32(
-        data[stride*15+96], data[stride*14+96], data[stride*13+96], data[stride*12+96], data[stride*11+96], data[stride*10+96], 
-         data[stride*9+96],  data[stride*8+96],  data[stride*7+96],  data[stride*6+96],  data[stride*5+96],  data[stride*4+96], 
-         data[stride*3+96],  data[stride*2+96],    data[stride+96],  data[96]
+    __m512i random_simd7 = _mm512_set_epi32(
+        stride*15+96, stride*14+96, stride*13+96, stride*12+96, stride*11+96, stride*10+96, 
+         stride*9+96,  stride*8+96,  stride*7+96,  stride*6+96, stride*5+96,  stride*4+96, 
+         stride*3+96,  stride*2+96,    stride+96,  96
     );
 
 
-    __m512i volatile random_simd8 = _mm512_set_epi32(
-        data[stride*15+112], data[stride*14+112], data[stride*13+112], data[stride*12+112], data[stride*11+112], data[stride*10+112], 
-         data[stride*9+112],  data[stride*8+112],  data[stride*7+112],  data[stride*6+112],  data[stride*5+112],  data[stride*4+112], 
-         data[stride*3+112],  data[stride*2+112],    data[stride+112],  data[112]
+    __m512i random_simd8 = _mm512_set_epi32(
+        stride*15+112, stride*14+112, stride*13+112, stride*12+112, stride*11+112, stride*10+112, 
+         stride*9+112,  stride*8+112,  stride*7+112,  stride*6+112,  stride*5+112,  stride*4+112, 
+         stride*3+112,  stride*2+112,    stride+112,  112
     );
 
 
-    for (uint64_t i = 64; i < data_size; i+=16) 
+    for (uint64_t i = 0; i < data_size; i++) 
     {
         random_simd1 = _mm512_i32gather_epi32 (random_simd1, (int const*)&data[0], sizeof(int));
         random_simd2 = _mm512_i32gather_epi32 (random_simd2, (int const*)&data[0], sizeof(int));
@@ -141,6 +146,10 @@ static void avx512_gather32_stride_kernel (
         random_simd7 = _mm512_i32gather_epi32 (random_simd7, (int const*)&data[0], sizeof(int));
         random_simd8 = _mm512_i32gather_epi32 (random_simd8, (int const*)&data[0], sizeof(int));
     }
+    do_not_optimize(random_simd1); do_not_optimize(random_simd2);
+    do_not_optimize(random_simd3); do_not_optimize(random_simd4);
+    do_not_optimize(random_simd5); do_not_optimize(random_simd6);
+    do_not_optimize(random_simd7); do_not_optimize(random_simd8);
 }
 
 static void avx512_gather32_stride_2equal_kernel (
@@ -150,60 +159,60 @@ static void avx512_gather32_stride_2equal_kernel (
     ) 
 {
 
-    __m512i volatile random_simd1 = _mm512_set_epi32(
-        data[stride*7], data[stride*7], data[stride*6], data[stride*6], data[stride*5], data[stride*5], data[stride*4], data[stride*4],
-        data[stride*3], data[stride*3], data[stride*2], data[stride*2], data[stride], data[stride], data[0], data[0]
+    __m512i random_simd1 = _mm512_set_epi32(
+        stride*7, stride*7, stride*6, stride*6, stride*5, stride*5, stride*4, stride*4,
+        stride*3, stride*3, stride*2, stride*2, stride, stride, 0, 0
     );
     
-    __m512i volatile random_simd2 = _mm512_set_epi32(
-        data[stride*7+16], data[stride*7+16], data[stride*6+16], data[stride*6+16], data[stride*5+16], data[stride*5+16], 
-         data[stride*4+16],  data[stride*4+16],  data[stride*3+16],  data[stride*3+16],  data[stride*2+16],  data[stride*2+16], 
-         data[stride+16],  data[stride+16],    data[16],  data[16]
+    __m512i random_simd2 = _mm512_set_epi32(
+        stride*7+16, stride*7+16, stride*6+16, stride*6+16, stride*5+16, stride*5+16, 
+        stride*4+16, stride*4+16, stride*3+16,  stride*3+16, stride*2+16,  stride*2+16, 
+        stride+16,   stride+16,    16,  16
     ); 
 
 
-    __m512i volatile random_simd3 = _mm512_set_epi32(
-        data[stride*7+32], data[stride*7+32], data[stride*6+32], data[stride*6+32], data[stride*5+32], data[stride*5+32], 
-         data[stride*4+32],  data[stride*4+32],  data[stride*3+32],  data[stride*3+32],  data[stride*2+32],  data[stride*2+32], 
-         data[stride+32],  data[stride+32],    data[32],  data[32]
+    __m512i random_simd3 = _mm512_set_epi32(
+        stride*7+32, stride*7+32, stride*6+32, stride*6+32, stride*5+32, stride*5+32, 
+         stride*4+32,  stride*4+32,  stride*3+32,  stride*3+32,  stride*2+32,  stride*2+32, 
+         stride+32,  stride+32,    32,  32
     ); 
 
 
-    __m512i volatile random_simd4 = _mm512_set_epi32(
-        data[stride*7+48], data[stride*7+48], data[stride*6+48], data[stride*6+48], data[stride*5+48], data[stride*5+48], 
-         data[stride*4+48],  data[stride*4+48],  data[stride*3+48],  data[stride*3+48],  data[stride*2+48],  data[stride*2+48], 
-         data[stride+48],  data[stride+48],    data[48],  data[48]
+    __m512i random_simd4 = _mm512_set_epi32(
+        stride*7+48, stride*7+48, stride*6+48, stride*6+48, stride*5+48, stride*5+48, 
+         stride*4+48,  stride*4+48,  stride*3+48,  stride*3+48,  stride*2+48,  stride*2+48, 
+         stride+48,  stride+48,    48,  48
     ); 
 
 
-    __m512i volatile random_simd5 = _mm512_set_epi32(
-        data[stride*7+64], data[stride*7+64], data[stride*6+64], data[stride*6+64], data[stride*5+64], data[stride*5+64], 
-         data[stride*4+64],  data[stride*4+64],  data[stride*3+64],  data[stride*3+64],  data[stride*2+64],  data[stride*2+64], 
-         data[stride+64],  data[stride+64],    data[64],  data[64]
+    __m512i random_simd5 = _mm512_set_epi32(
+        stride*7+64, stride*7+64, stride*6+64, stride*6+64, stride*5+64, stride*5+64, 
+        stride*4+64, stride*4+64, stride*3+64, stride*3+64, stride*2+64, stride*2+64, 
+        stride+64,   stride+64, 64,  64
     ); 
 
 
-    __m512i volatile random_simd6 = _mm512_set_epi32(
-        data[stride*7+80], data[stride*7+80], data[stride*6+80], data[stride*6+80], data[stride*5+80], data[stride*5+80], 
-         data[stride*4+80],  data[stride*4+80],  data[stride*3+80],  data[stride*3+80],  data[stride*2+80],  data[stride*2+80], 
-         data[stride+80],  data[stride+80],    data[80],  data[80]
+    __m512i random_simd6 = _mm512_set_epi32(
+        stride*7+80, stride*7+80, stride*6+80, stride*6+80, stride*5+80, stride*5+80, 
+        stride*4+80, stride*4+80, stride*3+80, stride*3+80, stride*2+80, stride*2+80, 
+        stride+80,   stride+80,    80,  80
     ); 
 
 
-    __m512i volatile random_simd7 = _mm512_set_epi32(
-        data[stride*7+96], data[stride*7+96], data[stride*6+96], data[stride*6+96], data[stride*5+96], data[stride*5+96], 
-         data[stride*4+96],  data[stride*4+96],  data[stride*3+96],  data[stride*3+96],  data[stride*2+96],  data[stride*2+96], 
-         data[stride+96],  data[stride+96],    data[96],  data[96]
+    __m512i random_simd7 = _mm512_set_epi32(
+        stride*7+96, stride*7+96, stride*6+96, stride*6+96, stride*5+96, stride*5+96, 
+        stride*4+96, stride*4+96, stride*3+96, stride*3+96, stride*2+96, stride*2+96, 
+        stride+96,   stride+96, 96,  96
     ); 
 
 
-    __m512i volatile random_simd8 = _mm512_set_epi32(
-        data[stride*7+112], data[stride*7+112], data[stride*6+112], data[stride*6+112], data[stride*5+112], data[stride*5+112], 
-         data[stride*4+112],  data[stride*4+112],  data[stride*3+112],  data[stride*3+112],  data[stride*2+112],  data[stride*2+112], 
-         data[stride+112],  data[stride+112],    data[112],  data[112]
+    __m512i random_simd8 = _mm512_set_epi32(
+        stride*7+112, stride*7+112, stride*6+112, stride*6+112, stride*5+112, stride*5+112, 
+        stride*4+112, stride*4+112, stride*3+112, stride*3+112, stride*2+112, stride*2+112, 
+        stride+112,   stride+112,  112,  112
     ); 
 
-    for (uint64_t i = 64; i < data_size; i+=16) 
+    for (uint64_t i = 0; i < data_size; i++) 
     {
         random_simd1 = _mm512_i32gather_epi32 (random_simd1, (int const*)&data[0], sizeof(int));
         random_simd2 = _mm512_i32gather_epi32 (random_simd2, (int const*)&data[0], sizeof(int));
@@ -214,6 +223,10 @@ static void avx512_gather32_stride_2equal_kernel (
         random_simd7 = _mm512_i32gather_epi32 (random_simd7, (int const*)&data[0], sizeof(int));
         random_simd8 = _mm512_i32gather_epi32 (random_simd8, (int const*)&data[0], sizeof(int));
     }
+    do_not_optimize(random_simd1); do_not_optimize(random_simd2);
+    do_not_optimize(random_simd3); do_not_optimize(random_simd4);
+    do_not_optimize(random_simd5); do_not_optimize(random_simd6);
+    do_not_optimize(random_simd7); do_not_optimize(random_simd8);
 }
 
 
@@ -223,61 +236,61 @@ static void avx512_gather32_stride_4equal_kernel (
     const int stride
     ) 
 {
-    __m512i volatile random_simd1 = _mm512_set_epi32(
-        data[stride*3], data[stride*3], data[stride*3], data[stride*3], data[stride*2], data[stride*2], data[stride*2], data[stride*2],
-        data[stride], data[stride], data[stride], data[stride], data[0], data[0], data[0], data[0]
+    __m512i random_simd1 = _mm512_set_epi32(
+        stride*3, stride*3, stride*3, stride*3, stride*2, stride*2, stride*2, stride*2,
+        stride, stride, stride, stride, 0, 0, 0, 0
     );
     
-    __m512i volatile random_simd2 = _mm512_set_epi32(
-        data[stride*3+16], data[stride*3+16], data[stride*3+16], data[stride*3+16], data[stride*2+16], data[stride*2+16], 
-         data[stride*2+16],  data[stride*2+16],  data[stride+16],  data[stride+16],  data[stride+16],  data[stride+16], 
-         data[16],  data[16],    data[16],  data[16]
+    __m512i random_simd2 = _mm512_set_epi32(
+        stride*3+16, stride*3+16, stride*3+16, stride*3+16, stride*2+16, stride*2+16, 
+        stride*2+16,  stride*2+16,  stride+16,  stride+16,  stride+16,  stride+16, 
+        16, 16, 16,  16
     ); 
 
 
-    __m512i volatile random_simd3 = _mm512_set_epi32(
-        data[stride*3+32], data[stride*3+32], data[stride*3+32], data[stride*3+32], data[stride*2+32], data[stride*2+32], 
-         data[stride*2+32],  data[stride*2+32],  data[stride+32],  data[stride+32],  data[stride+32],  data[stride+32], 
-         data[32],  data[32],    data[32],  data[32]
+    __m512i random_simd3 = _mm512_set_epi32(
+        stride*3+32, stride*3+32, stride*3+32, stride*3+32, stride*2+32, stride*2+32, 
+        stride*2+32,  stride*2+32,  stride+32,  stride+32,  stride+32,  stride+32, 
+        32, 32, 32,  32
     ); 
 
 
-    __m512i volatile random_simd4 = _mm512_set_epi32(
-        data[stride*3+48], data[stride*3+48], data[stride*3+48], data[stride*3+48], data[stride*2+48], data[stride*2+48], 
-         data[stride*2+48],  data[stride*2+48],  data[stride+48],  data[stride+48],  data[stride+48],  data[stride+48], 
-         data[48],  data[48],    data[48],  data[48]
+    __m512i random_simd4 = _mm512_set_epi32(
+        stride*3+48, stride*3+48, stride*3+48, stride*3+48, stride*2+48, stride*2+48, 
+        stride*2+48,  stride*2+48,  stride+48,  stride+48,  stride+48,  stride+48, 
+         48,  48,    48,  48
     ); 
 
 
-    __m512i volatile random_simd5 = _mm512_set_epi32(
-        data[stride*3+64], data[stride*3+64], data[stride*3+64], data[stride*3+64], data[stride*2+64], data[stride*2+64], 
-         data[stride*2+64],  data[stride*2+64],  data[stride+64],  data[stride+64],  data[stride+64],  data[stride+64], 
-         data[64],  data[64],    data[64],  data[64]
+    __m512i random_simd5 = _mm512_set_epi32(
+        stride*3+64, stride*3+64, stride*3+64, stride*3+64, stride*2+64, stride*2+64, 
+        stride*2+64,  stride*2+64,  stride+64,  stride+64,  stride+64,  stride+64, 
+         64,  64,    64,  64
     ); 
 
 
-    __m512i volatile random_simd6 = _mm512_set_epi32(
-        data[stride*3+80], data[stride*3+80], data[stride*3+80], data[stride*3+80], data[stride*2+80], data[stride*2+80], 
-         data[stride*2+80],  data[stride*2+80],  data[stride+80],  data[stride+80],  data[stride+80],  data[stride+80], 
-         data[80],  data[80],    data[80],  data[80]
+    __m512i random_simd6 = _mm512_set_epi32(
+        stride*3+80, stride*3+80, stride*3+80, stride*3+80, stride*2+80, stride*2+80, 
+        stride*2+80,  stride*2+80,  stride+80,  stride+80,  stride+80,  stride+80, 
+         80,  80,    80,  80
     ); 
 
 
-    __m512i volatile random_simd7 = _mm512_set_epi32(
-        data[stride*3+96], data[stride*3+96], data[stride*3+96], data[stride*3+96], data[stride*2+96], data[stride*2+96], 
-         data[stride*2+96],  data[stride*2+96],  data[stride+96],  data[stride+96],  data[stride+96],  data[stride+96], 
-         data[96],  data[96],    data[96],  data[96]
+    __m512i random_simd7 = _mm512_set_epi32(
+        stride*3+96, stride*3+96, stride*3+96, stride*3+96, stride*2+96, stride*2+96, 
+        stride*2+96, stride*2+96, stride+96,  stride+96,  stride+96,  stride+96, 
+        96,  96,    96,  96
     ); 
 
 
-    __m512i volatile random_simd8 = _mm512_set_epi32(
-        data[stride*3+112], data[stride*3+112], data[stride*3+112], data[stride*3+112], data[stride*2+112], data[stride*2+112], 
-         data[stride*2+112],  data[stride*2+112],  data[stride+112],  data[stride+112],  data[stride+112],  data[stride+112], 
-         data[112],  data[112],    data[112],  data[112]
+    __m512i random_simd8 = _mm512_set_epi32(
+        stride*3+112, stride*3+112, stride*3+112, stride*3+112, stride*2+112, stride*2+112, 
+        stride*2+112, stride*2+112, stride+112,  stride+112,  stride+112, stride+112, 
+        112,  112, 112,  112
     ); 
 
     
-    for (uint64_t i = 64; i < data_size; i+=16) 
+    for (uint64_t i = 0; i < data_size; i++) 
     {
         random_simd1 = _mm512_i32gather_epi32 (random_simd1, (int const*)&data[0], sizeof(int));
         random_simd2 = _mm512_i32gather_epi32 (random_simd2, (int const*)&data[0], sizeof(int));
@@ -288,6 +301,10 @@ static void avx512_gather32_stride_4equal_kernel (
         random_simd7 = _mm512_i32gather_epi32 (random_simd7, (int const*)&data[0], sizeof(int));
         random_simd8 = _mm512_i32gather_epi32 (random_simd8, (int const*)&data[0], sizeof(int));
     }
+    do_not_optimize(random_simd1); do_not_optimize(random_simd2);
+    do_not_optimize(random_simd3); do_not_optimize(random_simd4);
+    do_not_optimize(random_simd5); do_not_optimize(random_simd6);
+    do_not_optimize(random_simd7); do_not_optimize(random_simd8);
 }
 
 
@@ -297,16 +314,15 @@ static void avx512_gather32_all_same_kernel (
     const int stride
     ) 
 {
-    (void)stride; 
-    __m512i volatile random_simd1 = _mm512_set1_epi32(data[0]);
-    __m512i volatile random_simd2 = _mm512_set1_epi32(data[1]);
-    __m512i volatile random_simd3 = _mm512_set1_epi32(data[2]);
-    __m512i volatile random_simd4 = _mm512_set1_epi32(data[3]);
-    __m512i volatile random_simd5 = _mm512_set1_epi32(data[4]);
-    __m512i volatile random_simd6 = _mm512_set1_epi32(data[5]);
-    __m512i volatile random_simd7 = _mm512_set1_epi32(data[6]);
-    __m512i volatile random_simd8 = _mm512_set1_epi32(data[7]);
-    for (uint64_t i = 64; i < data_size; i+=16) 
+    __m512i random_simd1 = _mm512_set1_epi32(0);
+    __m512i random_simd2 = _mm512_set1_epi32(1);
+    __m512i random_simd3 = _mm512_set1_epi32(2);
+    __m512i random_simd4 = _mm512_set1_epi32(3);
+    __m512i random_simd5 = _mm512_set1_epi32(4);
+    __m512i random_simd6 = _mm512_set1_epi32(5);
+    __m512i random_simd7 = _mm512_set1_epi32(6);
+    __m512i random_simd8 = _mm512_set1_epi32(7);
+    for (uint64_t i = 0; i < data_size; i++) 
     {
         random_simd1 = _mm512_i32gather_epi32 (random_simd1, (int const*)&data[0], sizeof(int));
         random_simd2 = _mm512_i32gather_epi32 (random_simd2, (int const*)&data[0], sizeof(int));
@@ -317,6 +333,11 @@ static void avx512_gather32_all_same_kernel (
         random_simd7 = _mm512_i32gather_epi32 (random_simd7, (int const*)&data[0], sizeof(int));
         random_simd8 = _mm512_i32gather_epi32 (random_simd8, (int const*)&data[0], sizeof(int));
     }
+    unused(stride);
+    do_not_optimize(random_simd1); do_not_optimize(random_simd2);
+    do_not_optimize(random_simd3); do_not_optimize(random_simd4);
+    do_not_optimize(random_simd5); do_not_optimize(random_simd6);
+    do_not_optimize(random_simd7); do_not_optimize(random_simd8);
 }
 
 #endif // __AVX512F__

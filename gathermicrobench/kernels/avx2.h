@@ -42,6 +42,44 @@ static void avx2_256_loadu (
     do_not_optimize(random_simd5); do_not_optimize(random_simd6); 
     do_not_optimize(random_simd7); do_not_optimize(random_simd8); 
 }
+/*
+void avx2_256_loadu (
+    const int32_t* const data,
+    const uint64_t data_size,
+    const int stride
+    ) 
+{
+    __m256i random_simd1, random_simd2;
+    __m256i random_simd3, random_simd4;
+    __m256i random_simd5, random_simd6;
+    __m256i random_simd7, random_simd8;
+    
+    for (uint64_t j = 0; j < 64; j++)
+    {
+        int32_t index1 = 0, index2 = 8; 
+        int32_t index3 = 16, index4 = 24; 
+        int32_t index5 = 32, index6 = 40; 
+        int32_t index7 = 48, index8 = 56; 
+        for (uint64_t i = 0; i < data_size/64; i++) 
+        {
+            random_simd1 = _mm256_lddqu_si256((__m256i*)&data[index1]);
+            random_simd2 = _mm256_lddqu_si256((__m256i*)&data[index2]);
+            random_simd3 = _mm256_lddqu_si256((__m256i*)&data[index3]);
+            random_simd4 = _mm256_lddqu_si256((__m256i*)&data[index4]);
+            random_simd5 = _mm256_lddqu_si256((__m256i*)&data[index5]);
+            random_simd6 = _mm256_lddqu_si256((__m256i*)&data[index6]);
+            random_simd7 = _mm256_lddqu_si256((__m256i*)&data[index7]);
+            random_simd8 = _mm256_lddqu_si256((__m256i*)&data[index8]);
+            index1 += 64;     index3 += 64;  index5 += 64; index7 += 64;
+            index2 += 64;     index4 += 64;  index6 += 64; index8 += 64;
+        }
+    }
+    unused(stride); 
+    do_not_optimize(random_simd1); do_not_optimize(random_simd2); 
+    do_not_optimize(random_simd3); do_not_optimize(random_simd4); 
+    do_not_optimize(random_simd5); do_not_optimize(random_simd6); 
+    do_not_optimize(random_simd7); do_not_optimize(random_simd8); 
+}*/
 
 static void avx2_gather32_kernel (
     const int32_t* const data,

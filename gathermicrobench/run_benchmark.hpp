@@ -39,7 +39,8 @@ std::function<void(int32_t*, uint64_t, int)> select_simd_benchmark_32bits(bench_
             if (params.simd_type == REG_512BIT) return avx_512_loadu;
             if (params.simd_type == REG_256BIT) return avx2_256_loadu;
             else                                return sse_128_loadu_32;
-            case SCALAR_RANDOM:                 return scalar_gather32_kernel;
+            case SCALAR_RANDOM:                 return scalar_gather32_spilling_kernel;
+            case SCALAR_RANDOM_NOSPILLING:      return scalar_gather32_no_register_spilling_kernel;
             default:                            return sse_gather32_kernel;
         }
     #else
@@ -70,7 +71,8 @@ std::function<void(int32_t*, uint64_t, int)> select_simd_benchmark_32bits(bench_
             if (params.simd_type == REG_512BIT) return avx2_256_loadu;
             if (params.simd_type == REG_256BIT) return avx2_256_loadu;
             else                                return sse_128_loadu_32;
-            case SCALAR_RANDOM:                 return scalar_gather32_kernel;
+            case SCALAR_RANDOM:                 return scalar_gather32_spilling_kernel;
+            case SCALAR_RANDOM_NOSPILLING:      return scalar_gather32_no_register_spilling_kernel;
             default:                            return sse_gather32_kernel;
         }
     #endif
@@ -81,24 +83,28 @@ std::vector<std::function<void(int32_t*, uint64_t, int)>> select_simd_all_benchm
 
     std::vector<std::function<void(int32_t*, uint64_t, int)>> benchmarks_r128 = { 
         sse_gather32_kernel, sse_gather32_stride_kernel, sse_gather32_stride_2equal_kernel, 
-        sse_gather32_all_same_kernel, sse_gather32_all_same_kernel, sse_128_loadu_32, scalar_gather32_kernel
+        sse_gather32_all_same_kernel, sse_gather32_all_same_kernel, sse_128_loadu_32, scalar_gather32_spilling_kernel,
+        scalar_gather32_no_register_spilling_kernel
     }; 
 
     std::vector<std::function<void(int32_t*, uint64_t, int)>> benchmarks_r256 = { 
         avx2_gather32_kernel, avx2_gather32_stride_kernel, avx2_gather32_stride_2equal_kernel, 
-        avx2_gather32_stride_4equal_kernel, avx2_gather32_all_same_kernel, avx2_256_loadu, scalar_gather32_kernel
+        avx2_gather32_stride_4equal_kernel, avx2_gather32_all_same_kernel, avx2_256_loadu, scalar_gather32_spilling_kernel,
+        scalar_gather32_no_register_spilling_kernel
     }; 
 
     #if __AVX512F__ && __AVX512VL__
         std::vector<std::function<void(int32_t*, uint64_t, int)>> benchmarks_r512 = { 
             avx512_gather32_kernel, avx512_gather32_stride_kernel, avx512_gather32_stride_2equal_kernel, 
-            avx512_gather32_stride_4equal_kernel, avx512_gather32_all_same_kernel, avx_512_loadu, scalar_gather32_kernel
+            avx512_gather32_stride_4equal_kernel, avx512_gather32_all_same_kernel, avx_512_loadu, scalar_gather32_spilling_kernel,
+            scalar_gather32_no_register_spilling_kernel
         }; 
     #else
         #warning No AVX512 support, using AVX2 instead
         std::vector<std::function<void(int32_t*, uint64_t, int)>> benchmarks_r512 = { 
         avx2_gather32_kernel, avx2_gather32_stride_kernel, avx2_gather32_stride_2equal_kernel, 
-        avx2_gather32_stride_4equal_kernel, avx2_gather32_all_same_kernel, avx2_256_loadu, scalar_gather32_kernel
+        avx2_gather32_stride_4equal_kernel, avx2_gather32_all_same_kernel, avx2_256_loadu, scalar_gather32_spilling_kernel, 
+        scalar_gather32_no_register_spilling_kernel
         }; 
     #endif
     
@@ -114,8 +120,9 @@ std::vector<std::function<void(int32_t*, uint64_t, int)>> select_simd_all_benchm
 
 void benchmark_run_64bits(bench_params_t params)
 {
-    const int64_t     iters = params.iters; 
     const bench_algo_t algo = params.bench_algo; 
+    const bench_algo_t algo = params.bench_algo; 
+    const int64_t     iters = params.iters;
     const int64_t data_size = get_data_size(params); 
 
     if (algo == ALL)
@@ -195,8 +202,8 @@ void benchmark_run_64bits(bench_params_t params)
 
 void benchmark_run_32bits(bench_params_t params)
 {
-    const int64_t     iters = params.iters; 
     const bench_algo_t algo = params.bench_algo; 
+    const int64_t     iters = params.iters;
     const int64_t data_size = get_data_size(params); 
 
     if (algo == ALL)

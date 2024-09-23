@@ -1,7 +1,7 @@
 #include <gathermicrobench/benchmark_params.hpp>
 #include <algorithm>
 
-#define SIZE_12KB   12000
+#define SIZE_12KB  12000
 #define SIZE_1MB   1000000
 #define SIZE_10MB  10000000
 #define SIZE_256MB 256000000
@@ -156,14 +156,15 @@ void init_data_32bits(int32_t* data, int64_t data_size, bench_params_t params)
 { 
     switch (params.bench_algo) 
     {
-        case RANDOM:           generate_data_random_32bits(data, data_size);         break;
-        case STRIDE:           generate_data_stride_32bits(data, data_size, params); break;
-        case STRIDE_2EQUAL:    generate_data_stride_32bits(data, data_size, params); break;
-        case STRIDE_4EQUAL:    generate_data_stride_32bits(data, data_size, params); break;
-        case ALL_SAME:         generate_data_random_32bits(data, data_size);         break;
-        case LOAD:             generate_data_stride_32bits(data, data_size, params); break;
-        case SCALAR_RANDOM:    generate_data_random_32bits(data, data_size);         break;
-        default:               generate_data_random_32bits(data, data_size);         break;
+        case RANDOM:                   generate_data_random_32bits(data, data_size);         break;
+        case STRIDE:                   generate_data_stride_32bits(data, data_size, params); break;
+        case STRIDE_2EQUAL:            generate_data_stride_32bits(data, data_size, params); break;
+        case STRIDE_4EQUAL:            generate_data_stride_32bits(data, data_size, params); break;
+        case ALL_SAME:                 generate_data_random_32bits(data, data_size);         break;
+        case LOAD:                     generate_data_stride_32bits(data, data_size, params); break;
+        case SCALAR_RANDOM:            generate_data_random_32bits(data, data_size);         break;
+        case SCALAR_RANDOM_NOSPILLING: generate_data_random_32bits(data, data_size);         break;
+        default:                       generate_data_random_32bits(data, data_size);         break;
     }
 }
 
@@ -172,13 +173,14 @@ void init_data_64bits(int64_t* data, int64_t data_size, bench_params_t params)
 { 
     switch (params.bench_algo) 
     {
-        case RANDOM:           generate_data_random_64bits(data, data_size);         break;
-        case STRIDE:           generate_data_stride_64bits(data, data_size, params); break;
-        case STRIDE_2EQUAL:    generate_data_stride_64bits(data, data_size, params); break;
-        case STRIDE_4EQUAL:    generate_data_stride_64bits(data, data_size, params); break;
-        case ALL_SAME:         generate_data_random_64bits(data, data_size);         break;
-        case LOAD:             generate_data_stride_64bits(data, data_size, params); break;
-        case SCALAR_RANDOM:    generate_data_random_64bits(data, data_size);         break;
-        default:               generate_data_random_64bits(data, data_size);         break;
+        case RANDOM:                   generate_data_random_64bits(data, data_size);         break;
+        case STRIDE:                   generate_data_stride_64bits(data, data_size, params); break;
+        case STRIDE_2EQUAL:            generate_data_stride_64bits(data, data_size, params); break;
+        case STRIDE_4EQUAL:            generate_data_stride_64bits(data, data_size, params); break;
+        case ALL_SAME:                 generate_data_random_64bits(data, data_size);         break;
+        case LOAD:                     generate_data_stride_64bits(data, data_size, params); break;
+        case SCALAR_RANDOM:            generate_data_random_64bits(data, data_size);         break;
+        case SCALAR_RANDOM_NOSPILLING: generate_data_random_64bits(data, data_size);         break;
+        default:                       generate_data_random_64bits(data, data_size);         break;
     }
 }
