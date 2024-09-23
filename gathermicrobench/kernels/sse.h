@@ -20,7 +20,7 @@ static void sse_128_loadu_32 (
     int32_t index3 = 8,  index4 = 12; 
     int32_t index5 = 16, index6 = 20;
     int32_t index7 = 24, index8 = 28;
-    for (uint64_t i = 64; i < data_size; i+=4) 
+    for (uint64_t i = 0; i < data_size; i++) 
     {
         random_simd1 = _mm_lddqu_si128((__m128i*)&data[index1]);
         random_simd2 = _mm_lddqu_si128((__m128i*)&data[index2]);
@@ -56,7 +56,7 @@ static void sse_gather32_kernel (
     __m128i random_simd6 = _mm_lddqu_si128((__m128i*)&data[20]);
     __m128i random_simd7 = _mm_lddqu_si128((__m128i*)&data[24]);
     __m128i random_simd8 = _mm_lddqu_si128((__m128i*)&data[28]);
-    for (uint64_t i = 32; i < data_size; i+=4) 
+    for (uint64_t i = 0; i < data_size; i++) 
     {
         random_simd1 = _mm_i32gather_epi32 ((int const*)&data[0], random_simd1, sizeof(int));
         random_simd2 = _mm_i32gather_epi32 ((int const*)&data[0], random_simd2, sizeof(int));
@@ -113,7 +113,7 @@ static void sse_gather32_stride_kernel (
         stride*3+56, stride*2+56, stride+56, 56
     );
 
-    for (uint64_t i = 64; i < data_size; i+=4) 
+    for (uint64_t i = 0; i < data_size; i++) 
     {
         random_simd1 = _mm_i32gather_epi32 ((int const*)&data[0], random_simd1, sizeof(int));
         random_simd2 = _mm_i32gather_epi32 ((int const*)&data[0], random_simd2, sizeof(int));
@@ -169,7 +169,7 @@ static void sse_gather32_stride_2equal_kernel (
         stride+56, stride+56, 56, 56
     );
 
-    for (uint64_t i = 64; i < data_size; i+=4) 
+    for (uint64_t i = 0; i < data_size; i++) 
     {
         random_simd1 = _mm_i32gather_epi32 ((int const*)&data[0], random_simd1, sizeof(int));
         random_simd2 = _mm_i32gather_epi32 ((int const*)&data[0], random_simd2, sizeof(int));
@@ -201,7 +201,7 @@ static void sse_gather32_all_same_kernel (
     __m128i random_simd7 = _mm_set1_epi32(7);
     __m128i random_simd8 = _mm_set1_epi32(8);
 
-    for (uint64_t i = 64; i < data_size; i+=4) 
+    for (uint64_t i = 0; i < data_size; i++) 
     {
         random_simd1 = _mm_i32gather_epi32 ((int const*)&data[0], random_simd1, sizeof(int));
         random_simd2 = _mm_i32gather_epi32 ((int const*)&data[0], random_simd2, sizeof(int));
