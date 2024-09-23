@@ -121,7 +121,6 @@ std::vector<std::function<void(int32_t*, uint64_t, int)>> select_simd_all_benchm
 void benchmark_run_64bits(bench_params_t params)
 {
     const bench_algo_t algo = params.bench_algo; 
-    const bench_algo_t algo = params.bench_algo; 
     const int64_t     iters = params.iters;
     const int64_t data_size = get_data_size(params); 
 
