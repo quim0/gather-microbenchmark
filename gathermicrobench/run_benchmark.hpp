@@ -50,8 +50,16 @@ void benchmark_32bits(const int32_t* data, int64_t data_size, bench_params_t par
         }
     #else
         #ifdef __ARM_FEATURE_SVE
-            if (params.simd_type == SCALAR) return;
-            else                            sve_gather32_kernel_throughput(data, data_size, benchmark, stride); 
+            if (params.simd_type == SCALAR)
+            {
+                return;
+            }
+            else
+            {
+                if (params.bench_mode == THROUGHPUT) sve_gather32_bench_throughput(data, data_size, benchmark, stride);
+                else                                 sve_gather32_bench_latency(data, data_size, benchmark, stride);
+            } 
+            return;
         #endif
     #endif
 }
@@ -62,7 +70,9 @@ void benchmark_run_32bits(bench_params_t params)
     const int64_t     iters   = params.iters;
     const int64_t data_size   = get_data_size(params); 
     const int64_t total_iters = iters * data_size; 
-    
+    #ifdef __ARM_FEATURE_SVE
+        params.simd_type = (params.simd_type == SCALAR) ? SCALAR : REG_512BIT;
+    #endif
     auto counter_definitions = perf::CounterDefinition{};
     auto event_counter       = perf::EventCounter{counter_definitions};
     if (!event_counter.add({ "instructions",
