@@ -11,7 +11,7 @@ int string_to_value(std::string value, std::string param)
         else if (value == "MM_SIZE") return MM_SIZE;
         else
         {
-           std::cout << "Unknown memory-size: Initializing the memory-size to L1_SIZE" << std::endl;
+           std::cout << "Unknown memory-size: Using L1_SIZE instead." << std::endl;
            return L1_SIZE;
         }
     } 
@@ -21,9 +21,10 @@ int string_to_value(std::string value, std::string param)
         if      (value == "REG_128BIT") return REG_128BIT;
         else if (value == "REG_256BIT") return REG_256BIT;
         else if (value == "REG_512BIT") return REG_512BIT;
+        else if (value == "SCALAR")     return SCALAR;
         else 
         {
-           std::cout << "Unknown simd-size: Initializing the simd-size to REG_128BIT" << std::endl;
+           std::cout << "Unknown simd-size: Using REG_128BIT instead." << std::endl;
            return REG_128BIT;
         }
     } 
@@ -36,12 +37,10 @@ int string_to_value(std::string value, std::string param)
         else if (value == "STRIDE_4EQUAL")               return STRIDE_4EQUAL; 
         else if (value == "ALL_SAME")                    return ALL_SAME; 
         else if (value == "ALL")                         return ALL; 
-        else if (value == "SCALAR_RANDOM")               return SCALAR_RANDOM;
-        else if (value == "SCALAR_RANDOM_NOSPILLING")    return SCALAR_RANDOM; 
         else if (value == "LOAD")                        return LOAD; 
         else 
         {
-           std::cout << "Unknown benchmark: Initializing the benchmark to RANDOM" << std::endl;
+           std::cout << "Unknown benchmark: Using RANDOM instead." << std::endl;
            return RANDOM;
         }
     } 
@@ -52,15 +51,23 @@ int string_to_value(std::string value, std::string param)
         else if (value == "INT64_DATA") return INT64_DATA;
         else 
         {
-           std::cout << "Unknown data-type: Initializing the data-type to INT32_DATA" << std::endl;
+           std::cout << "Unknown data-type: Using INT32_DATA instead." << std::endl;
            return INT32_DATA;
         }
     } 
 
+    if (param == "benchmark-mode")
+    {
+        if      (value == "THROUGHPUT") return THROUGHPUT; 
+        else if (value == "LATENCY")    return LATENCY;
+        else
+        {
+           std::cout << "Unknown benchmark-mode: Using THROUGHPUT instead." << std::endl;
+           return THROUGHPUT;
+        }
+    }
     return 0;
 }
-
-
 
 void parse_arguments_benchmark(int argc, char** argv, bench_params_t* params)
 {
@@ -70,10 +77,11 @@ void parse_arguments_benchmark(int argc, char** argv, bench_params_t* params)
 
     options.add_options()
         ("i,iterations", "Iterations to be executed", cxxopts::value<int64_t>())
-        ("m,memory-size", "Memory Size (L1_SIZE, L2_SIZE, L3_SIZE, MM_SIZE)", cxxopts::value<std::string>())
-        ("s,simd-size", "SIMD register size (REG_128BIT, REG_256BIT, REG_512BIT)", cxxopts::value<std::string>())
-        ("b,benchmark", "Benchmark (RANDOM, STRIDE, ALL, ...)", cxxopts::value<std::string>())
-        ("d,data-type", "Data type (INT32_DATA, INT64_DATA)", cxxopts::value<std::string>())
+        ("m,memory-size", "Memory Size: (L1_SIZE, L2_SIZE, L3_SIZE, MM_SIZE)", cxxopts::value<std::string>())
+        ("s,simd-size", "SIMD register size: (REG_128BIT, REG_256BIT, REG_512BIT)", cxxopts::value<std::string>())
+        ("b,benchmark", "Benchmark: (RANDOM, STRIDE, ALL, ...)", cxxopts::value<std::string>())
+        ("t,benchmark-mode", "Benchmark mode: (THROUGHPUT, LATENCY)", cxxopts::value<std::string>())
+        ("d,data-type", "Data type: (INT32_DATA, INT64_DATA)", cxxopts::value<std::string>())
         ("S,stride", "Stride (1, 2 or 4): If benchmark is not stride this field is ignored", cxxopts::value<int>())
         ("h,help", "Print usage")
     ;
@@ -125,7 +133,7 @@ void parse_arguments_benchmark(int argc, char** argv, bench_params_t* params)
                 std::cout << "stride set to 1 because an attempt has been made to initialize with a value other than 1, 2 or 4." << std::endl;
             }
             stride = (stride == 4) ? 4 : (stride == 2) ? 2 : 1; 
-            params->stride = stride;
+            params->stride = (params->bench_algo == LOAD) ? 1 : stride;
         }
     }
     catch(const std::exception& e)

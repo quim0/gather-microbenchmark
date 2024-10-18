@@ -162,8 +162,6 @@ void init_data_32bits(int32_t* data, int64_t data_size, bench_params_t params)
         case STRIDE_4EQUAL:            generate_data_stride_32bits(data, data_size, params); break;
         case ALL_SAME:                 generate_data_random_32bits(data, data_size);         break;
         case LOAD:                     generate_data_stride_32bits(data, data_size, params); break;
-        case SCALAR_RANDOM:            generate_data_random_32bits(data, data_size);         break;
-        case SCALAR_RANDOM_NOSPILLING: generate_data_random_32bits(data, data_size);         break;
         default:                       generate_data_random_32bits(data, data_size);         break;
     }
 }
@@ -179,8 +177,6 @@ void init_data_64bits(int64_t* data, int64_t data_size, bench_params_t params)
         case STRIDE_4EQUAL:            generate_data_stride_64bits(data, data_size, params); break;
         case ALL_SAME:                 generate_data_random_64bits(data, data_size);         break;
         case LOAD:                     generate_data_stride_64bits(data, data_size, params); break;
-        case SCALAR_RANDOM:            generate_data_random_64bits(data, data_size);         break;
-        case SCALAR_RANDOM_NOSPILLING: generate_data_random_64bits(data, data_size);         break;
         default:                       generate_data_random_64bits(data, data_size);         break;
     }
 }
