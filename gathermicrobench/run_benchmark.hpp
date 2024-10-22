@@ -1,6 +1,7 @@
 #include <iostream>
 #include <perfcpp/event_counter.h>
 #include <gathermicrobench/generate_data.hpp>
+#include <gathermicrobench/kernels/scalar.h>
 
 #if __AVX2__
     #include <gathermicrobench/kernels/sse.h>
@@ -12,7 +13,6 @@
     #ifdef __ARM_FEATURE_SVE
         #include <gathermicrobench/kernels/sve.h>
     #endif
-    #include <gathermicrobench/kernels/scalar.h>
 #endif
 
 void benchmark_32bits(const int32_t* data, int64_t data_size, bench_params_t params)
@@ -23,7 +23,9 @@ void benchmark_32bits(const int32_t* data, int64_t data_size, bench_params_t par
         switch (params.simd_type)
         {
             case SCALAR: 
-                return;
+                if (params.bench_mode == THROUGHPUT) scalar_kernel_throughput(data, data_size, benchmark, stride); 
+                else                                 scalar_kernel_latency(data, data_size, benchmark, stride);
+                return; 
             case REG_128BIT: 
                 if (params.bench_mode == THROUGHPUT) sse_gather32_bench_throughput(data, data_size, benchmark, stride); 
                 else                                 sse_gather32_bench_latency(data, data_size, benchmark, stride);
@@ -52,7 +54,9 @@ void benchmark_32bits(const int32_t* data, int64_t data_size, bench_params_t par
         #ifdef __ARM_FEATURE_SVE
             if (params.simd_type == SCALAR)
             {
-                return;
+                if (params.bench_mode == THROUGHPUT) scalar_kernel_throughput(data, data_size, benchmark, stride); 
+                else                                 scalar_kernel_latency(data, data_size, benchmark, stride);
+                return; 
             }
             else
             {

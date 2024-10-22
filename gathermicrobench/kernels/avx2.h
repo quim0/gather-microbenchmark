@@ -77,6 +77,13 @@ void _mm256_loadu_kernel_throughput (
         index9  = data[index9];  index10 = data[index10];  
         index11 = data[index11]; index12 = data[index12]; 
         index13 = data[index13];
+        do_not_optimize(random_simd1);  do_not_optimize(random_simd2); 
+        do_not_optimize(random_simd3);  do_not_optimize(random_simd4); 
+        do_not_optimize(random_simd5);  do_not_optimize(random_simd6); 
+        do_not_optimize(random_simd7);  do_not_optimize(random_simd8); 
+        do_not_optimize(random_simd9);  do_not_optimize(random_simd10); 
+        do_not_optimize(random_simd11); do_not_optimize(random_simd12); 
+        do_not_optimize(random_simd13);
     }
     unused(stride); 
     do_not_optimize(random_simd1);  do_not_optimize(random_simd2); 
@@ -162,6 +169,7 @@ void _mm256_loadu_kernel_latency (
     {
         random_simd1 = _mm256_lddqu_si256((__m256i*)&data[index1]);
         index1 = data[index1]; 
+        do_not_optimize(random_simd1);
     }
     unused(stride); 
     do_not_optimize(random_simd1);

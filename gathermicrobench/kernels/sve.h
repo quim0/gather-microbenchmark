@@ -16,8 +16,8 @@ svint32_t svset_s32(const int32_t* data, int start, int benchmark, int stride)
     {
         case /*RANDOM*/ 0:        return svld1(mask, &data[start8]); 
         case /*STRIDE*/ 1:        return svindex_s32(start8, stride);
-        case /*STRIDE_2EQUAL*/ 2: return svadd_s32_m(stride_2equal, start_reg);
-        case /*STRIDE_4EQUAL*/ 3: return svadd_s32_m(stride_4equal, start_reg);
+        case /*STRIDE_2EQUAL*/ 2: return svadd_s32_m(mask, stride_2equal, start_reg);
+        case /*STRIDE_4EQUAL*/ 3: return svadd_s32_m(mask, stride_4equal, start_reg);
         case /*ALL_SAME*/ 4:      return svdup_s32_x(mask, start);
         default:                  return svld1(mask, &data[start8]); 
     }
@@ -68,6 +68,13 @@ void sve_ld1_throughput (
         index9  = data[index9];  index10 = data[index10];  
         index11 = data[index11]; index12 = data[index12]; 
         index13 = data[index13];
+        do_not_optimize(random_simd1);  do_not_optimize(random_simd2); 
+        do_not_optimize(random_simd3);  do_not_optimize(random_simd4); 
+        do_not_optimize(random_simd5);  do_not_optimize(random_simd6); 
+        do_not_optimize(random_simd7);  do_not_optimize(random_simd8); 
+        do_not_optimize(random_simd9);  do_not_optimize(random_simd10); 
+        do_not_optimize(random_simd11); do_not_optimize(random_simd12); 
+        do_not_optimize(random_simd13);
     }
     unused(stride); 
     do_not_optimize(random_simd1);  do_not_optimize(random_simd2); 
@@ -155,6 +162,7 @@ void sve_ld1_latencty(
     {
         random_simd1  = svld1(mask, &data[index1]); 
         index1  = data[index1];  
+        do_not_optimize(random_simd1); 
     }
     unused(stride); 
     do_not_optimize(random_simd1); 
