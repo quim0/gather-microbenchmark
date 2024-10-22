@@ -6,16 +6,7 @@
 #include <stdio.h>
 #include <immintrin.h>
 #include "kernels_common.h"
-/*
-void print_mm256(__m256i reg)
-{
-    int buffer[8];
-    _mm256_storeu_si256((__m256i*)&buffer[0], reg);
-    printf("v = { %d, %d, %d, %d, %d, %d, %d, %d}\n",
-            buffer[0], buffer[1], buffer[2], buffer[3],
-            buffer[4], buffer[5], buffer[6], buffer[7]
-        );
-}*/
+
 __m256i _mm256_set_epi32_benchmark(const int32_t* data, int start, int benchmark, int stride)
 {
     int start8 = start << 3; 
@@ -115,7 +106,6 @@ void _mm256_gather32_kernel_throughput(
     __m256i random_simd11 = _mm256_set_epi32_benchmark(data, 10, benchmark, stride);
     __m256i random_simd12 = _mm256_set_epi32_benchmark(data, 11, benchmark, stride);
     __m256i random_simd13 = _mm256_set_epi32_benchmark(data, 12, benchmark, stride);
-   // print_mm256(random_simd1); 
     for (uint64_t i = 0; i < data_size; i++) 
     {
         random_simd1  = _mm256_i32gather_epi32 ((int const*)&data[0], random_simd1, sizeof(int));
@@ -132,7 +122,6 @@ void _mm256_gather32_kernel_throughput(
         random_simd12 = _mm256_i32gather_epi32 ((int const*)&data[0], random_simd12, sizeof(int));
         random_simd13 = _mm256_i32gather_epi32 ((int const*)&data[0], random_simd13, sizeof(int));
     }
-   // print_mm256(random_simd1);
     do_not_optimize(random_simd1);  do_not_optimize(random_simd2); 
     do_not_optimize(random_simd3);  do_not_optimize(random_simd4); 
     do_not_optimize(random_simd5);  do_not_optimize(random_simd6); 

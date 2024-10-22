@@ -39,11 +39,11 @@ void scalar_kernel_throughput(
         case /*STRIDE_4EQUAL*/ 3:
         case /*ALL_SAME*/ 4:
             gather1_index1 = 0; gather1_index2 = 0; gather1_index3 = 0; gather1_index4 = 0;
-            gather1_index1 = 1; gather2_index2 = 1; gather2_index3 = 1; gather2_index4 = 1;
-            gather1_index1 = 2; gather3_index2 = 2; gather3_index3 = 2; gather3_index4 = 2;
+            gather2_index1 = 1; gather2_index2 = 1; gather2_index3 = 1; gather2_index4 = 1;
+            gather3_index1 = 2; gather3_index2 = 2; gather3_index3 = 2; gather3_index4 = 2;
             break;
     }
-    for (uint64_t i = 0; i < data_size; i++) 
+    for (uint64_t i = 0; i < data_size-1; i++) 
     {
         //gather1
         gather1_index1 = data[gather1_index1]; gather1_index2 = data[gather1_index2];
@@ -54,7 +54,7 @@ void scalar_kernel_throughput(
         //gather3
         gather3_index1 = data[gather3_index1]; gather3_index2 = data[gather3_index2];
         gather3_index3 = data[gather3_index3]; gather3_index4 = data[gather3_index4];
-    }
+    }     
     //gather1
     do_not_optimize_scalar(gather1_index1); do_not_optimize_scalar(gather1_index2);
     do_not_optimize_scalar(gather1_index3); do_not_optimize_scalar(gather1_index4);
@@ -79,7 +79,7 @@ void scalar_kernel_latency(
         //gather1
         gather1_index1 = data[gather1_index1];
     }
-    unused(stride);
+    unused(stride); unused(benchmark);
     do_not_optimize_scalar(gather1_index1);
 }
 #endif
