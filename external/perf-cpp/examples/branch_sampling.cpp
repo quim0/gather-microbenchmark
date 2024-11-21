@@ -27,28 +27,27 @@ main()
 
   /// Initialize sampler.
   auto perf_config = perf::SampleConfig{};
-  perf_config.precise_ip(0U);   /// precise_ip controls the amount of skid, see
-                                /// https://man7.org/linux/man-pages/man2/perf_event_open.2.html
-  perf_config.period(1000000U); /// Record every 10000th event.
-  perf_config.branch_type(perf::BranchType::User |
-                          perf::BranchType::Conditional); /// Only sample conditional branches in user-mode.
+  perf_config.period(1000000U); /// Record every 1,000,000th event.
 
-  auto sampler =
-    perf::Sampler{ counter_definitions,
-                   "cycles", /// Event generates an overflow which is sampled (here we sample
-                             /// every 1,000,000th cycle), the rest is recorded.
-                   perf::Sampler::Type::Time |
-                     perf::Sampler::Type::BranchStack, /// Controls what to include into the sample, see
-                                                       /// https://man7.org/linux/man-pages/man2/perf_event_open.2.html
-                   perf_config };
+  auto sampler = perf::Sampler{ counter_definitions, perf_config };
+
+  /// Setup which counters trigger the writing of samples.
+  sampler.trigger("cycles", perf::Precision::AllowArbitrarySkid);
+
+  /// Setup which data will be included into samples (timestamp and stack of branches).
+  sampler.values().time(true).branch_stack(
+    { perf::BranchType::User, perf::BranchType::Conditional }) /// Only sample conditional branches in user-mode.
+    ;
 
   /// Create random access benchmark.
   auto benchmark = perf::example::AccessBenchmark{ /*sequential accesses*/ false,
                                                    /* create benchmark of 512 MB */ 512U };
 
   /// Start sampling.
-  if (!sampler.start()) {
-    std::cerr << "Could not start sampling, errno = " << sampler.last_error() << "." << std::endl;
+  try {
+    sampler.start();
+  } catch (std::runtime_error& exception) {
+    std::cerr << exception.what() << std::endl;
     return 1;
   }
 
@@ -70,12 +69,9 @@ main()
   const auto samples = sampler.result();
 
   /// Print the first samples.
-  const auto count_show_samples = std::min<std::size_t>(samples.size(), 40U);
+  const auto count_show_samples = std::min<std::size_t>(samples.size(), 10U);
   std::cout << "\nRecorded " << samples.size() << " samples." << std::endl;
   std::cout << "Here are the first " << count_show_samples << " recorded samples:\n" << std::endl;
-
-  std::optional<perf::CounterResult> last_counter_result = std::nullopt; /// Remember the last counter result to show
-                                                                         /// only the difference.
 
   for (auto index = 0U; index < count_show_samples; ++index) {
     const auto& sample = samples[index];
@@ -89,8 +85,6 @@ main()
                   << branch.instruction_pointer_from() << " | to instruction " << branch.instruction_pointer_to()
                   << "\n";
       }
-
-      last_counter_result = sample.counter_result();
     }
   }
   std::cout << std::flush;

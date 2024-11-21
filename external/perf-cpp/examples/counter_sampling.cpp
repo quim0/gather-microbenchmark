@@ -16,30 +16,25 @@ main()
 
   /// Initialize sampler.
   auto perf_config = perf::SampleConfig{};
-  perf_config.precise_ip(0U);   /// precise_ip controls the amount of skid, see
-                                /// https://man7.org/linux/man-pages/man2/perf_event_open.2.html
-  perf_config.period(1000000U); /// Record every 10000th event.
+  perf_config.period(1000000U); /// Record every 1,000,000th event.
 
-  auto sampler = perf::Sampler{
-    counter_definitions,
-    std::vector<std::string>{
-      "cycles", "L1-dcache-loads", "L1-dcache-load-misses" }, /// List of events. The first event generates
-                                                              /// an overflow which is sampled (here we
-                                                              /// sample every 1,000,000th cycle), the rest
-                                                              /// is recorded.
-    perf::Sampler::Type::Time |
-      perf::Sampler::Type::CounterValues, /// Controls what to include into the sample, see
-                                          /// https://man7.org/linux/man-pages/man2/perf_event_open.2.html
-    perf_config
-  };
+  auto sampler = perf::Sampler{ counter_definitions, perf_config };
+
+  /// Setup the event that will trigger writing samples.
+  sampler.trigger("cycles", perf::Precision::AllowArbitrarySkid);
+
+  /// Setup which data should be included (L1 hit and miss counter, timestamp).
+  sampler.values().counter({ "L1-dcache-loads", "L1-dcache-load-misses" }).time(true);
 
   /// Create random access benchmark.
   auto benchmark = perf::example::AccessBenchmark{ /*randomize the accesses*/ true,
                                                    /* create benchmark of 512 MB */ 512U };
 
   /// Start sampling.
-  if (!sampler.start()) {
-    std::cerr << "Could not start sampling, errno = " << sampler.last_error() << "." << std::endl;
+  try {
+    sampler.start();
+  } catch (std::runtime_error& exception) {
+    std::cerr << exception.what() << std::endl;
     return 1;
   }
 
@@ -73,21 +68,20 @@ main()
 
     /// Since we recorded the time, period, the instruction pointer, and the CPU
     /// id, we can only read these values.
-    if (sample.time().has_value() && sample.counter_result().has_value()) {
+    if (sample.time().has_value() && sample.counter().has_value()) {
       if (last_counter_result.has_value()) {
         std::cout << "Time = " << sample.time().value() << " | cycles (diff) = "
-                  << sample.counter_result()->get("cycles").value_or(.0) -
-                       last_counter_result->get("cycles").value_or(.0)
+                  << sample.counter()->get("cycles").value_or(.0) - last_counter_result->get("cycles").value_or(.0)
                   << " | L1-dcache-loads (diff) = "
-                  << sample.counter_result()->get("L1-dcache-loads").value_or(.0) -
+                  << sample.counter()->get("L1-dcache-loads").value_or(.0) -
                        last_counter_result->get("L1-dcache-loads").value_or(.0)
                   << " | L1-dcache-load-misses (diff) = "
-                  << sample.counter_result()->get("L1-dcache-load-misses").value_or(.0) -
+                  << sample.counter()->get("L1-dcache-load-misses").value_or(.0) -
                        last_counter_result->get("L1-dcache-load-misses").value_or(.0)
                   << "\n";
       }
 
-      last_counter_result = sample.counter_result();
+      last_counter_result = sample.counter();
     }
   }
   std::cout << std::flush;

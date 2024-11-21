@@ -15,7 +15,14 @@ L1-data-miss-ratio
 
 **Attention**: Metrics will not work with sampling.
 
-## Recording metrics
+---
+## Table of Contents
+- [Recording Metrics](#recording-metrics)
+- [Defining Metrics](#defining-metrics)
+    - [Measure defined Metrics](#measure-defined-metrics)
+---
+
+## Recording Metrics
 You can add metrics like counters.
 ```cpp
 #include <perfcpp/event_counter.h>
@@ -25,7 +32,7 @@ auto event_counter = perf::EventCounter{counter_definitions};
 event_counter.add({"cycles-per-instruction"});
 ```
 
-## Defining specific metrics
+## Defining Metrics
 However, the most intriguing metrics depend on the counters that are available on specific hardware. 
 You can use the `perf::Metric` interface to develop your own metrics, tailored to the unique performance counters of your system:
 
@@ -62,7 +69,7 @@ public:
 };
 ```
 
-### Measure the new metric
+### Measure defined Metrics
 Upon implementation, the metric must be added to the counter definition instance:
 ```cpp
 auto counter_definitions = perf::CounterDefinition{};

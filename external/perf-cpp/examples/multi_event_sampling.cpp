@@ -8,7 +8,8 @@ main()
 {
   std::cout << "libperf-cpp example: Record perf samples including time, "
                "logical memory address, latency, and data source for "
-               "single-threaded random access to an in-memory array."
+               "single-threaded random access to an in-memory array "
+               "using multiple events as trigger."
             << std::endl;
 
   /// Initialize counter definitions.
@@ -18,29 +19,35 @@ main()
 
   /// Initialize sampler.
   auto perf_config = perf::SampleConfig{};
-  perf_config.period(16000U); /// Record every 16,000th event.
+  perf_config.period(10000U); /// Record every 10,000th event.
 
   auto sampler = perf::Sampler{ counter_definitions, perf_config };
 
-  /// Setup which counters trigger the writing of samples (depends on the underlying hardware substrate).
-  if (perf::HardwareInfo::is_amd_ibs_supported()) {
-    sampler.trigger("ibs_op_uops", perf::Precision::MustHaveZeroSkid);
-  } else if (perf::HardwareInfo::is_intel()) {
+  if (perf::HardwareInfo::is_intel()) {
     if (perf::HardwareInfo::is_intel_aux_counter_required()) {
-      /// Note: For sampling on Sapphire Rapids, we have to prepend an auxiliary counter.
-      sampler.trigger({ perf::Sampler::Trigger{ "mem-loads-aux", perf::Precision::MustHaveZeroSkid },
-                        perf::Sampler::Trigger{ "mem-loads", perf::Precision::MustHaveZeroSkid } });
+      sampler.trigger({
+        {
+          perf::Sampler::Trigger{ "mem-loads-aux", perf::Precision::MustHaveZeroSkid }, /// Helper
+          perf::Sampler::Trigger{ "mem-loads", perf::Precision::RequestZeroSkid }       /// Loads
+        },
+        { perf::Sampler::Trigger{ "mem-stores", perf::Precision::MustHaveZeroSkid } } /// Stores
+      });
     } else {
-      sampler.trigger("mem-loads", perf::Precision::MustHaveZeroSkid);
+      sampler.trigger(std::vector<std::vector<perf::Sampler::Trigger>>{
+        {
+          perf::Sampler::Trigger{ "mem-loads", perf::Precision::RequestZeroSkid } /// Loads
+        },
+        { perf::Sampler::Trigger{ "mem-stores", perf::Precision::MustHaveZeroSkid } } /// Stores
+      });
     }
   } else {
-    std::cout << "Error: Memory sampling is not supported on this CPU." << std::endl;
+    std::cout << "Error: Memory sampling with multiple triggers is not supported on this CPU." << std::endl;
     return 1;
   }
 
-  /// Setup which data will be included into samples (timestamp, virtual memory address, data source like L1d or RAM,
-  /// and latency).
+  /// Define what to sample.
   sampler.values().time(true).logical_memory_address(true).data_src(true);
+
 #ifndef PERFCPP_NO_SAMPLE_WEIGHT_STRUCT
   sampler.values().weight_struct(true);
 #else
@@ -49,7 +56,8 @@ main()
 
   /// Create random access benchmark.
   auto benchmark = perf::example::AccessBenchmark{ /*randomize the accesses*/ true,
-                                                   /* create benchmark of 512 MB */ 512U };
+                                                   /* create benchmark of 512 MB */ 512U,
+                                                   /* also support writing */ true };
 
   /// Start sampling.
   try {
@@ -60,9 +68,12 @@ main()
   }
 
   /// Execute the benchmark (accessing cache lines in a random order).
-  auto value = 0ULL;
+  auto value = 0LL;
   for (auto index = 0U; index < benchmark.size(); ++index) {
     value += benchmark[index].value;
+
+    /// Also write a value to get store events.
+    benchmark.set(index, value);
   }
   asm volatile(""
                : "+r,m"(value)
@@ -74,18 +85,8 @@ main()
   sampler.stop();
 
   /// Get all the recorded samples.
-  auto samples = sampler.result();
+  auto samples = sampler.result(/* sort by time */ true);
   const auto count_samples_before_filter = samples.size();
-
-  /// Filter out samples without data source (AMD samples all instructions, not only data-related).
-  samples.erase(std::remove_if(samples.begin(),
-                               samples.end(),
-                               [](const auto& sample) {
-                                 return sample.count_loss().has_value() || sample.data_src().has_value() == false ||
-                                        sample.data_src().value().is_na() || sample.weight().has_value() == false ||
-                                        sample.logical_memory_address().value_or(0U) == 0U;
-                               }),
-                samples.end());
 
   /// Print the first samples.
   const auto count_show_samples = std::min<std::size_t>(samples.size(), 40U);
@@ -111,13 +112,20 @@ main()
         data_source = "local RAM";
       }
 
+      auto type = "N/A";
+      if (sample.data_src()->is_load()) {
+        type = "Load";
+      } else if (sample.data_src()->is_store()) {
+        type = "Store";
+      }
+
       const auto weight = sample.weight().value_or(perf::Weight{ 0U, 0U, 0U });
 
       std::cout << "Time = " << sample.time().value() << " | Logical Mem Address = 0x" << std::hex
                 << sample.logical_memory_address().value() << std::dec
                 << " | Latency (cache, instruction) = " << weight.cache_latency() << ", "
-                << weight.instruction_retirement_latency() << " | Is Load = " << sample.data_src()->is_load()
-                << " | Data Source = " << data_source << "\n";
+                << weight.instruction_retirement_latency() << " | Type = " << type << " | Data Source = " << data_source
+                << "\n";
     } else if (sample.count_loss().has_value()) {
       std::cout << "Loss = " << sample.count_loss().value() << "\n";
     }

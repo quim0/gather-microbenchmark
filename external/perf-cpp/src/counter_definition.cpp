@@ -1,70 +1,93 @@
-#include <perfcpp/counter_definition.h>
-
 #include <fstream>
+#include <perfcpp/counter_definition.h>
+#include <perfcpp/feature.h>
+#include <perfcpp/hardware_info.h>
 #include <sstream>
+#include <string_view>
+#include <utility>
 
 perf::CounterDefinition::CounterDefinition(const std::string& config_file)
 {
-  this->initialized_default_counters();
+  this->initialize_generalized_counters();
+  this->initialize_amd_ibs_counters();
+  this->initialize_intel_pebs_counters();
+
   this->read_counter_configuration(config_file);
 }
 
 perf::CounterDefinition::CounterDefinition()
 {
-  this->initialized_default_counters();
+  this->initialize_generalized_counters();
+  this->initialize_amd_ibs_counters();
+  this->initialize_intel_pebs_counters();
 }
 
-std::optional<perf::CounterConfig>
+std::optional<std::pair<std::string_view, perf::CounterConfig>>
 perf::CounterDefinition::counter(const std::string& name) const noexcept
 {
   if (auto iterator = this->_counter_configs.find(name); iterator != this->_counter_configs.end()) {
-    return std::make_optional(iterator->second);
+    return std::make_optional(std::make_pair(std::string_view(iterator->first), iterator->second));
+  }
+
+  return std::nullopt;
+}
+
+std::optional<std::pair<std::string_view, perf::Metric&>>
+perf::CounterDefinition::metric(const std::string& name) const noexcept
+{
+  if (auto iterator = _metrics.find(name); iterator != _metrics.end()) {
+    return std::make_optional(std::make_pair(std::string_view(iterator->first), std::ref(*iterator->second)));
   }
 
   return std::nullopt;
 }
 
 void
-perf::CounterDefinition::initialized_default_counters()
+perf::CounterDefinition::initialize_generalized_counters()
 {
   this->_counter_configs.reserve(128U);
   this->_metrics.reserve(64U);
 
-  /// Pre-defined counters.
-  this->add("instructions", CounterConfig{ PERF_TYPE_HARDWARE, PERF_COUNT_HW_INSTRUCTIONS });
+  this->add("instructions", PERF_TYPE_HARDWARE, PERF_COUNT_HW_INSTRUCTIONS);
 
-  this->add("cycles", CounterConfig{ PERF_TYPE_HARDWARE, PERF_COUNT_HW_CPU_CYCLES });
-  this->add("cpu-cycles", CounterConfig{ PERF_TYPE_HARDWARE, PERF_COUNT_HW_CPU_CYCLES });
-  this->add("bus-cycles", CounterConfig{ PERF_TYPE_HARDWARE, PERF_COUNT_HW_BUS_CYCLES });
+  /// Cycles
+  this->add("cycles", PERF_TYPE_HARDWARE, PERF_COUNT_HW_CPU_CYCLES);
+  this->add("cpu-cycles", PERF_TYPE_HARDWARE, PERF_COUNT_HW_CPU_CYCLES);
+  this->add("bus-cycles", PERF_TYPE_HARDWARE, PERF_COUNT_HW_BUS_CYCLES);
 
-  this->add("cache-misses", CounterConfig{ PERF_TYPE_HARDWARE, PERF_COUNT_HW_CACHE_MISSES });
-  this->add("cache-references", CounterConfig{ PERF_TYPE_HARDWARE, PERF_COUNT_HW_CACHE_REFERENCES });
+  /// Branches
+  this->add("branches", PERF_TYPE_HARDWARE, PERF_COUNT_HW_BRANCH_INSTRUCTIONS);
+  this->add("branch-instructions", PERF_TYPE_HARDWARE, PERF_COUNT_HW_BRANCH_INSTRUCTIONS);
+  this->add("branch-misses", PERF_TYPE_HARDWARE, PERF_COUNT_HW_BRANCH_MISSES);
 
-  this->add("branches", CounterConfig{ PERF_TYPE_HARDWARE, PERF_COUNT_HW_BRANCH_INSTRUCTIONS });
-  this->add("branch-instructions", CounterConfig{ PERF_TYPE_HARDWARE, PERF_COUNT_HW_BRANCH_INSTRUCTIONS });
-  this->add("branch-misses", CounterConfig{ PERF_TYPE_HARDWARE, PERF_COUNT_HW_BRANCH_MISSES });
+  /// Stall events
+  this->add("stalled-cycles-backend", PERF_TYPE_HARDWARE, PERF_COUNT_HW_STALLED_CYCLES_BACKEND);
+  this->add("idle-cycles-backend", PERF_TYPE_HARDWARE, PERF_COUNT_HW_STALLED_CYCLES_BACKEND);
+  this->add("stalled-cycles-frontend", PERF_TYPE_HARDWARE, PERF_COUNT_HW_STALLED_CYCLES_FRONTEND);
+  this->add("idle-cycles-frontend", PERF_TYPE_HARDWARE, PERF_COUNT_HW_STALLED_CYCLES_FRONTEND);
 
-  this->add("stalled-cycles-backend", CounterConfig{ PERF_TYPE_HARDWARE, PERF_COUNT_HW_STALLED_CYCLES_BACKEND });
-  this->add("idle-cycles-backend", CounterConfig{ PERF_TYPE_HARDWARE, PERF_COUNT_HW_STALLED_CYCLES_BACKEND });
-  this->add("stalled-cycles-frontend", CounterConfig{ PERF_TYPE_HARDWARE, PERF_COUNT_HW_STALLED_CYCLES_FRONTEND });
-  this->add("idle-cycles-frontend", CounterConfig{ PERF_TYPE_HARDWARE, PERF_COUNT_HW_STALLED_CYCLES_FRONTEND });
-
-  this->add("cpu-clock", CounterConfig{ PERF_TYPE_SOFTWARE, PERF_COUNT_SW_CPU_CLOCK });
-  this->add("task-clock", CounterConfig{ PERF_TYPE_SOFTWARE, PERF_COUNT_SW_TASK_CLOCK });
-  this->add("page-faults", CounterConfig{ PERF_TYPE_SOFTWARE, PERF_COUNT_SW_PAGE_FAULTS });
-  this->add("faults", CounterConfig{ PERF_TYPE_SOFTWARE, PERF_COUNT_SW_PAGE_FAULTS });
-  this->add("major-faults", CounterConfig{ PERF_TYPE_SOFTWARE, PERF_COUNT_SW_PAGE_FAULTS_MAJ });
-  this->add("minor-faults", CounterConfig{ PERF_TYPE_SOFTWARE, PERF_COUNT_SW_PAGE_FAULTS_MIN });
-  this->add("alignment-faults", CounterConfig{ PERF_TYPE_SOFTWARE, PERF_COUNT_SW_ALIGNMENT_FAULTS });
-  this->add("emulation-faults", CounterConfig{ PERF_TYPE_SOFTWARE, PERF_COUNT_SW_EMULATION_FAULTS });
-  this->add("context-switches", CounterConfig{ PERF_TYPE_SOFTWARE, PERF_COUNT_SW_CONTEXT_SWITCHES });
-  this->add("bpf-output", CounterConfig{ PERF_TYPE_SOFTWARE, PERF_COUNT_SW_BPF_OUTPUT });
-#ifndef NO_PERF_COUNT_SW_CGROUP_SWITCHES /// PERF_COUNT_SW_CGROUP_SWITCHES is provided since Linux Kernel 5.13
-  this->add("cgroup-switches", CounterConfig{ PERF_TYPE_SOFTWARE, PERF_COUNT_SW_CGROUP_SWITCHES });
+  /// Software events
+  this->add("cpu-clock", PERF_TYPE_SOFTWARE, PERF_COUNT_SW_CPU_CLOCK);
+  this->add("task-clock", PERF_TYPE_SOFTWARE, PERF_COUNT_SW_TASK_CLOCK);
+  this->add("page-faults", PERF_TYPE_SOFTWARE, PERF_COUNT_SW_PAGE_FAULTS);
+  this->add("faults", PERF_TYPE_SOFTWARE, PERF_COUNT_SW_PAGE_FAULTS);
+  this->add("major-faults", PERF_TYPE_SOFTWARE, PERF_COUNT_SW_PAGE_FAULTS_MAJ);
+  this->add("minor-faults", PERF_TYPE_SOFTWARE, PERF_COUNT_SW_PAGE_FAULTS_MIN);
+  this->add("alignment-faults", PERF_TYPE_SOFTWARE, PERF_COUNT_SW_ALIGNMENT_FAULTS);
+  this->add("emulation-faults", PERF_TYPE_SOFTWARE, PERF_COUNT_SW_EMULATION_FAULTS);
+  this->add("context-switches", PERF_TYPE_SOFTWARE, PERF_COUNT_SW_CONTEXT_SWITCHES);
+#ifndef PERFCPP_NO_COUNT_SW_BPF_OUTPUT /// PERF_COUNT_SW_BPF_OUTPUT is supported since Linux Kernel 4.4
+  this->add("bpf-output", PERF_TYPE_SOFTWARE, PERF_COUNT_SW_BPF_OUTPUT);
 #endif
-  this->add("cpu-migrations", CounterConfig{ PERF_TYPE_SOFTWARE, PERF_COUNT_SW_CPU_MIGRATIONS });
-  this->add("migrations", CounterConfig{ PERF_TYPE_SOFTWARE, PERF_COUNT_SW_CPU_MIGRATIONS });
+#ifndef PERFCPP_NO_CGROUP_SWITCHES /// PERF_COUNT_SW_CGROUP_SWITCHES is supported since Linux Kernel 5.13
+  this->add("cgroup-switches", PERF_TYPE_SOFTWARE, PERF_COUNT_SW_CGROUP_SWITCHES);
+#endif
+  this->add("cpu-migrations", PERF_TYPE_SOFTWARE, PERF_COUNT_SW_CPU_MIGRATIONS);
+  this->add("migrations", PERF_TYPE_SOFTWARE, PERF_COUNT_SW_CPU_MIGRATIONS);
 
+  /// Cache events
+  this->add("cache-misses", PERF_TYPE_HARDWARE, PERF_COUNT_HW_CACHE_MISSES);
+  this->add("cache-references", PERF_TYPE_HARDWARE, PERF_COUNT_HW_CACHE_REFERENCES);
   this->add("L1-dcache-loads",
             PERF_TYPE_HW_CACHE,
             PERF_COUNT_HW_CACHE_L1D | (PERF_COUNT_HW_CACHE_OP_READ << 8) | (PERF_COUNT_HW_CACHE_RESULT_ACCESS << 16));
@@ -77,6 +100,8 @@ perf::CounterDefinition::initialized_default_counters()
   this->add("L1-icache-load-misses",
             PERF_TYPE_HW_CACHE,
             PERF_COUNT_HW_CACHE_L1I | (PERF_COUNT_HW_CACHE_OP_READ << 8) | (PERF_COUNT_HW_CACHE_RESULT_MISS << 16));
+
+  /// TLB events
   this->add("dTLB-loads",
             PERF_TYPE_HW_CACHE,
             PERF_COUNT_HW_CACHE_DTLB | (PERF_COUNT_HW_CACHE_OP_READ << 8) | (PERF_COUNT_HW_CACHE_RESULT_ACCESS << 16));
@@ -90,9 +115,6 @@ perf::CounterDefinition::initialized_default_counters()
             PERF_TYPE_HW_CACHE,
             PERF_COUNT_HW_CACHE_ITLB | (PERF_COUNT_HW_CACHE_OP_READ << 8) | (PERF_COUNT_HW_CACHE_RESULT_MISS << 16));
 
-  /// Auxiliary event, needed on some Intel architectures (starting from Sapphire Rapids).
-  this->add("mem-loads-aux", PERF_TYPE_RAW, 0x8203);
-
   /// Pre-defined metrics.
   this->add(std::make_unique<CyclesPerInstruction>());
   this->add(std::make_unique<CacheHitRatio>());
@@ -102,13 +124,64 @@ perf::CounterDefinition::initialized_default_counters()
 }
 
 void
-perf::CounterDefinition::read_counter_configuration(const std::string& config_file)
+perf::CounterDefinition::initialize_amd_ibs_counters()
+{
+  /// IBS OP.
+  const auto ibs_op_type = HardwareInfo::amd_ibs_op_type();
+  if (ibs_op_type.has_value()) {
+    this->add("ibs_op", CounterConfig{ ibs_op_type.value(), 0U });
+    this->add("ibs_op_uops", CounterConfig{ ibs_op_type.value(), 1ULL << 19U });
+
+    if (HardwareInfo::is_ibs_l3_filter_supported()) {
+      this->add("ibs_op_l3missonly", CounterConfig{ ibs_op_type.value(), 1ULL << 16U });
+      this->add("ibs_op_uops_l3missonly", CounterConfig{ ibs_op_type.value(), (1ULL << 19U) | (1ULL << 16U) });
+    }
+  }
+
+  /// IBS Fetch.
+  const auto ibs_fetch_type = HardwareInfo::amd_ibs_fetch_type();
+  if (ibs_fetch_type.has_value()) {
+    this->add("ibs_fetch", CounterConfig{ ibs_fetch_type.value(), 1ULL << 57U });
+
+    if (HardwareInfo::is_ibs_l3_filter_supported()) {
+      this->add("ibs_fetch_l3missonly", CounterConfig{ ibs_fetch_type.value(), (1ULL << 57U) | (1ULL << 16U) });
+    }
+  }
+}
+
+void
+perf::CounterDefinition::initialize_intel_pebs_counters()
+{
+  if (HardwareInfo::is_intel()) {
+    if (HardwareInfo::is_intel_aux_counter_required()) {
+      /// Auxiliary event, needed on some Intel architectures.
+      if (const auto mem_loads_aux_event_id = HardwareInfo::intel_pebs_mem_loads_aux_event_id();
+          mem_loads_aux_event_id.has_value()) {
+        this->add("mem-loads-aux", PERF_TYPE_RAW, mem_loads_aux_event_id.value());
+      }
+    }
+
+    /// mem-loads event.
+    if (const auto mem_loads_event_id = HardwareInfo::intel_pebs_mem_loads_event_id(); mem_loads_event_id.has_value()) {
+      this->add("mem-loads", PERF_TYPE_RAW, mem_loads_event_id.value());
+    }
+
+    /// mem-loads event.
+    if (const auto mem_stores_event_id = HardwareInfo::intel_pebs_mem_stores_event_id();
+        mem_stores_event_id.has_value()) {
+      this->add("mem-stores", PERF_TYPE_RAW, mem_stores_event_id.value());
+    }
+  }
+}
+
+void
+perf::CounterDefinition::read_counter_configuration(const std::string& csv_filename)
 {
   /// Read all counter values from the config file in the format
   ///     name,<config>[,<extended config>,<type>]
   /// where <config> and <extended config> are either integer or hex values.
 
-  auto input_file = std::ifstream{ config_file };
+  auto input_file = std::ifstream{ csv_filename };
   if (input_file.is_open()) {
     std::string line;
     while (std::getline(input_file, line)) {

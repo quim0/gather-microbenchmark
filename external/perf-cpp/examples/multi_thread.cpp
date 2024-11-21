@@ -14,21 +14,26 @@ main()
                "afterwards."
             << std::endl;
 
+  constexpr auto count_threads = 2U;
+
   /// Initialize performance counters.
   /// Note that the perf::CounterDefinition holds all counter names and must be
   /// alive until the benchmark finishes.
   auto counter_definitions = perf::CounterDefinition{};
-  auto event_counter = perf::EventCounter{ counter_definitions };
+  auto multithread_event_counter = perf::MultiThreadEventCounter{ counter_definitions, count_threads };
 
   /// Add all the performance counters we want to record.
-  if (!event_counter.add({ "instructions",
-                           "cycles",
-                           "branches",
-                           "cache-misses",
-                           "dTLB-miss-ratio",
-                           "L1-data-miss-ratio",
-                           "cycles-per-instruction" })) {
-    std::cerr << "Could not add performance counters." << std::endl;
+  try {
+    multithread_event_counter.add({ "instructions",
+                                    "cycles",
+                                    "branches",
+                                    "cache-misses",
+                                    "dTLB-miss-ratio",
+                                    "L1-data-miss-ratio",
+                                    "cycles-per-instruction" });
+  } catch (std::runtime_error& e) {
+    std::cerr << e.what() << std::endl;
+    return 1;
   }
 
   /// Create random access benchmark.
@@ -36,14 +41,10 @@ main()
                                                    /* create benchmark of 1024 MB */ 1024U };
 
   /// One event_counter instance for every thread.
-  const auto count_threads = 2U;
   const auto items_per_thread = benchmark.size() / count_threads;
   auto threads = std::vector<std::thread>{};
-  auto thread_local_results = std::vector<std::uint64_t>(2U, 0U); /// Array to store the thread-local results.
-
-  /// Create a perf counter for every thread.
-  /// Note that the `event_counter` object cannot be used afterwards.
-  auto multithread_event_counter = perf::EventCounterMT{ std::move(event_counter), count_threads };
+  auto thread_local_results =
+    std::vector<std::uint64_t>(count_threads, 0U); /// Array to store the thread-local results.
 
   for (auto thread_index = 0U; thread_index < count_threads; ++thread_index) {
     threads.emplace_back(
@@ -53,7 +54,12 @@ main()
         /// Start recording counters.
         /// In contrast to the inherit-thread example (see inherit_thread.cpp), we
         /// will record the performance counters on each thread.
-        multithread_event_counter.start(thread_index);
+        try {
+          multithread_event_counter.start(thread_index);
+        } catch (std::runtime_error& exception) {
+          std::cerr << exception.what() << std::endl;
+          return;
+        }
 
         /// Process the data.
         for (auto index = 0U; index < items_per_thread; ++index) {
@@ -74,7 +80,7 @@ main()
 
   /// Add up the results so that the compiler does not get the idea of
   /// optimizing away the accesses.
-  auto value = std::accumulate(thread_local_results.begin(), thread_local_results.end(), 0U);
+  auto value = std::accumulate(thread_local_results.begin(), thread_local_results.end(), 0UL);
   asm volatile("" : "+r,m"(value) : : "memory");
 
   /// Get the result (normalized per cache line) from the
@@ -82,9 +88,9 @@ main()
   auto result = multithread_event_counter.result(benchmark.size());
 
   /// Print the performance counters.
-  std::cout << "\nHere are the results for " << count_threads << " threads:\n" << std::endl;
+  std::cout << "\nResults:\n";
   for (const auto& [counter_name, counter_value] : result) {
-    std::cout << counter_value << " " << counter_name << " per cache line" << std::endl;
+    std::cout << counter_value << " " << counter_name << " / cache line" << std::endl;
   }
 
   return 0;

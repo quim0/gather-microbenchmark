@@ -4,26 +4,62 @@
 Essentially, you define a sampling period or frequency at which data is captured. 
 At its core, this functionality is akin to traditional profiling tools, like `perf record`, but uniquely tailored to record specific blocks of code rather than the entire application.
 
-The following data can be recorded:
-* Instruction pointers (current and callchain)
-* ID of thread, CPU, and sample
-* Timestamp
-* Logical and physical address
-* Data source (e.g., cache level, memory, etc.)
-* Group of counter values
-* Last branch stack (including jump addresses and prediction)
-* User- and kernel-level registers
-* Weight of the access (which is mostly the latency)
-* Data and code page sizes (when sampling for data addresses or instruction pointers)
-
 &rarr; [See details below](#what-can-be-recorded-and-how-to-access-the-data).
 
+The details below provide an overview of how sampling works.
+For specific information about sampling in parallel settings (i.e., sampling multiple threads and cores) take a look [into the "parallel sampling" documentation](sampling-parallel.md).
+
+---
+## Table of Contents
+- [Interface](#interface)
+  - [1) Define What is Recorded and When](#1-define-what-is-recorded-and-when)
+  - [2) Open the Sampler *(optional)*](#2-open-the-sampler-optional-)
+  - [3) Wrap `start()` and `stop()` around the Processing Code](#3-wrap-start-and-stop-around-the-processing-code)
+  - [4) Access the Recorded Samples](#4-access-the-recorded-samples)
+  - [5) Closing the Sampler](#5-closing-the-sampler-optional)
+- [Trigger](#trigger)
+- [Precision](#precision)
+- [Period / Frequency](#period--frequency)
+- [What can be Recorded and how to Access the Data?](#what-can-be-recorded-and-how-to-access-the-data)
+  - [Time](#time)
+  - [Stream ID](#stream-id)
+  - [Period](#period)
+  - [Identifier](#identifier)
+  - [Instruction Pointer](#instruction-pointer)
+  - [Callchain](#callchain)
+  - [Registers in user-level](#registers-in-user-level)
+  - [Registers in kernel-level](#registers-in-kernel-level)
+  - [ID of the recording Thread](#id-of-the-recording-thread)
+  - [ID of the recording CPU](#id-of-the-recording-cpu)
+  - [Size of the Code Page](#size-of-the-code-page)
+  - [Performance Counter Values](#performance-counter-values)
+  - [Branch Stack (LBR)](#branch-stack-lbr)
+  - [Physical Memory Address](#physical-memory-address)
+  - [Logical Memory Address](#logical-memory-address)
+  - [Memory Access Latency](#memory-access-latency)
+  - [Data Source of a Memory Load](#data-source-of-a-memory-load)
+  - [Size of the Data Page](#size-of-the-data-page)
+  - [Transaction Abort](#transaction-abort)
+  - [Raw Values](#raw-values)
+  - [Context Switches](#context-switches)
+  - [CGroup](#cgroup)
+  - [Throttle and Unthrottle Events](#throttle-and-unthrottle-events)
+- [Sample mode](#sample-mode)
+- [Lost Samples](#lost-samples)
+- [Specific Notes for different CPU Vendors](#specific-notes-for-different-cpu-vendors)
+  - [Intel (PEBS)](#intel-pebs)
+  - [AMD (Instruction Based Sampling)](#amd-instruction-based-sampling)
+- [Debugging Counter Settings](#debugging-counter-settings)
+---
+
 ## Interface
-### 1) Define what is recorded and when
+### 1) Define What is Recorded and When
+The sampler utilizes a [trigger](#trigger) to determine **when** a sample is captured, along with a [set of values](#what-can-be-recorded-and-how-to-access-the-data) that specify **what** data can be recorded.
+
 ```cpp
 #include <perfcpp/sampler.h>
+/// The perf::CounterDefinition object holds all counter names and must be alive when counters are accessed.
 auto counter_definitions = perf::CounterDefinition{};
-auto event_counter = perf::EventCounter{counter_definitions};
 
 /// Define when the data is recorded.
 /// This can be every Nth event (e.g., every 1000th cycle):
@@ -33,36 +69,58 @@ sample_config.period(1000U);
 sample_config.frequency(2000000U);
 /// Note that you can use only frequency XOR period
 
-/// Define the trigger (cycles in this example) 
-//      and what to record (time and instruction pointer in this example)
-auto sampler = perf::Sampler{
-    counter_definitions,
-    "cycles",
-    perf::Sampler::Type::Time |  perf::Sampler::Type::InstructionPointer,
-    sample_config
-};
+/// Create the sampler.
+auto sampler = perf::Sampler{ counter_definitions, sample_config };
+
+/// Define the trigger (cycles in this example)...
+sampler.trigger("cycles");
+
+// and what to record (time and instruction pointer in this example)
+sampler.values().time(true).instruction_pointer(true);
 ```
 
-### 2) Wrap `start()` and `stop()` around your processing code
+### 2) Open the Sampler *(optional)* 
+The sampler is opened using `sampler.start()`, if it is not already opened.
+This action configures all necessary counters and buffers, a process that may require some time. 
+For those requiring **precise timing measurements** and wishing to omit the time spent setting up counters, the `sampler.open()` method can be invoked separately.
+
 ```cpp
-sampler.start();
+try {
+    sampler.open();
+} catch (std::runtime_error& e) {
+    std::cerr << e.what() << std::endl;
+}
+```
+
+### 3) Wrap `start()` and `stop()` around the Processing Code
+```cpp
+try {
+    sampler.start();
+} catch (std::runtime_error& e) {
+    std::cerr << e.what() << std::endl;
+}
 
 /// ... do some computational work here...
 
 sampler.stop();
 ```
 
-### 3) Access the recorded samples
-The output consists of a list of `perf::Sample` instances, where each sample may contain comprehensive data. 
-As you have the flexibility to specify which data elements to sample, each piece of data is encapsulated within an `std::optional` to handle its potential absence.
+### 4) Access the Recorded Samples
+The output is a series of `perf::Sample` instances, each potentially including extensive data. 
+Given the capability to select specific data elements for sampling, each data point is encapsulated within an `std::optional` to manage its potential absence.
+
+&rarr; [See how to query sample results](#what-can-be-recorded-and-how-to-access-the-data)
+
 ```cpp
 const auto result = sampler.result();
 
-for (const auto& sample : result)
+for (const auto& sample_record : result)
 {
-    if (sample.time().has_value() && sample.instruction_pointer().has_value())
+    if (sample_record.time().has_value() && sample_record.instruction_pointer().has_value())
     {
-        std::cout << "Time = " << sample.time().value() << " | IP = 0x" << std::hex << sample.instruction_pointer().value() << std::dec << std::endl;
+        std::cout 
+            << "Time = " << sample_record.time().value() 
+            << " | IP = 0x" << std::hex << sample_record.instruction_pointer().value() << std::dec << std::endl;
     }
 }
 ```
@@ -75,110 +133,222 @@ The output may be something like this:
     Time = 124853765058918 | IP = 0x5794c991990c
     Time = 124853765256328 | IP = 0x5794c991990c
 
----
-
-## Debugging Counter Settings
-In certain scenarios, configuring counters for sampling can be challenging, as settings (e.g., `precise_ip`) may need to be adjusted for different machines. 
-To facilitate this process, perf provides a debug output option:
-
-
-    perf --debug perf-event-open [mem] record ...
-
-
-This command helps visualize configurations for various counters, which is also beneficial for retrieving event codes (for more details, see the [counters documentation](counters.md)).
-
-Similarly, *perf-cpp* includes a debug feature for sampled counters. 
-To examine the configuration settings—particularly useful if encountering errors during `sampler.start();`—enable debugging in your code as follows:
+### 5) Closing the Sampler (*optional*)
+Closing the sampler releases and un-maps all buffers and deactivates all counters. 
+Additionally, the sampler automatically closes upon destruction. 
+However, closing the sampler explicitly enables it to be reopened at a future time.
 
 ```cpp
-sample_config.is_debug(true);
+sampler.close();
 ```
 
-When `is_debug` is set to `true`, *perf-cpp* will display the configuration of all counters upon initiating sampling.
-
 ---
 
-## Sample mode
-Each sample is recorded in one of the following modes:
-* Unknown
-* Kernel
-* User
-* Hypervisor
-* GuestKernel
-* GuestUser
+## Trigger
+Each sampler is associated with one or more [trigger](#trigger) events.
+When a trigger event reaches a specified (user-defined) threshold, the CPU records a sample containing the desired data. 
+Triggers for a sampler can be specified as follows:
 
-You can check the mode via `Sample::mode`, for example:
 ```cpp
-for (const auto& sample : result)
-{
-  if (sample.mode() == perf::Sample::Mode::Kernel)
-  {
-    std::cout << "Sample in Kernel" << std::endl;      
-  }
-  else if (sample.mode() == perf::Sample::Mode::User)
-  {
-    std::cout << "Sample in User" << std::endl;      
-  }
+sampler.trigger("cycles");
+```
+
+To define multiple triggers, use a vector of trigger names:
+
+```cpp
+sampler.trigger(std::vector<std::string>{"cycles", "instructions"});
+```
+In this scenario, exceeding either the cycles or instructions counter will prompt the CPU to capture a sample.
+
+## Precision
+Due to deeply pipelined processors, samples might not be precise, i.e., a sample might contain an instruction pointer or memory address that did not generate the overflow (&rarr; see [a blogpost on easyperf.net](https://easyperf.net/blog/2019/04/03/Precise-timing-of-machine-code-with-Linux-perf) and [the perf documentation](https://man7.org/linux/man-pages/man2/perf_event_open.2.html)).
+You can request a specific amount if skid through for each trigger, for example,
+
+```cpp
+sampler.trigger("cycles", perf::Precision::AllowArbitrarySkid);
+```
+
+The precision can have the following values:
+* `perf::Precision::AllowArbitrarySkid` (this does **not** enable Intel PEBS)
+* `perf::Precision::MustHaveConstantSkid` (default)
+* `perf::Precision::RequestZeroSkid`
+* `perf::Precision::MustHaveZeroSkid`
+
+If you do not set any precision level through the `.trigger()` interface, you can control the *default* precision through the sample config:
+
+```cpp
+auto sample_config = perf::SampleConfig{};
+sample_config.precision(perf::Precision::RequestZeroSkid);
+
+auto sampler = perf::Sampler{ counter_definitions, sample_config };
+sampler.trigger("cycles");
+```
+
+**Note**: If the precision setting is too high and the perf subsystem fails to activate the trigger, *perf-cpp* will automatically reduce the precision. 
+However, it will not increase precision autonomously.
+
+## Period / Frequency
+You can request a specific period **or** frequency for each trigger – basically how often the hardware should write samples –, for example,
+
+```cpp
+/// Every 4000th cycle.
+sampler.trigger("cycles", perf::Period{4000U});
+```
+
+**or**
+
+```cpp
+/// With a frequency of 1000 samples per second , i.e., one sample per millisecond.
+// (the hardware will adjust the period according to the provided frequency).
+sampler.trigger("cycles", perf::Frequency{1000U});
+```
+
+You can also combine the configurations, for example, by
+```cpp
+/// Every 4000th cycle with zero skid.
+sampler.trigger("cycles", perf::Precision::RequestZeroSkid, perf::Period{4000U});
+```
+
+If you do not set any precision level through the `.trigger()` interface, you can control the *default* period of frequency through the sample config:
+
+```cpp
+auto sample_config = perf::SampleConfig{};
+sample_config.period(4000U);
+/// xor:
+sample_config.frequency(1000U);
+
+auto sampler = perf::Sampler{ counter_definitions, sample_config };
+sampler.trigger("cycles");
+```
+
+## What can be Recorded and how to Access the Data?
+Prior to activation, the sampler must be configured to specify the data to be recorded. For instance:
+
+```cpp
+sampler.values()
+    .time(true)
+    .instruction_pointer(true);
+```
+
+This specific configuration captures both the *timestamp* and *instruction pointer* within the sample record. 
+Upon completing the sampling and retrieving the results, the recorded fields can be accessed as follows:
+
+```cpp
+for (const auto& sample_record : sampler.results()) {
+    const auto timestamp = sample_record.time().value();
+    const auto instruction_pointer = sample_record.instruction_pointer().value();
 }
 ```
 
-## What can be recorded and how to access the data?
-The most of the following options can be combined using the or operator, e.g., `perf::Sampler::Type::Time |  perf::Sampler::Type::InstructionPointer`.
+### Time
+The timestamp of capturing the sample.
 
-### `perf::Sampler::Type::InstructionPointer`
-The instruction pointer of the current instruction. 
-You may need to adjust the `sample_config.precise_ip(X)` setting on different hardware (ranging from `0` to `3`). 
-The sampled instruction pointer can be accessed via `sample.instruction_pointer()`.
+* Request by `sampler.values().time(true);`
+* Read from the results by `sample_record.time().value()`
 
-&rarr; [See example](../examples/instruction_pointer_sampling.cpp)
+&rarr; [See code example](../examples/instruction_pointer_sampling.cpp)
 
-### `perf::Sampler::Type::ThreadId`
-The thread id. Can be accessed via `sample.thread_id()`.
+### Stream ID
+Unique ID of an opened event.
+* Request by `sampler.values().stream_id(true);`
+* Read from the results by `sample_record.stream_id().value()`
 
-### `perf::Sampler::Type::Time`
-A timestamp. Can be accessed via `sample.time()`.
+### Period
+Period at the time of capturing the sample (the Kernel might adjust the period).
 
-&rarr; [See example](../examples/instruction_pointer_sampling.cpp)
+* Request by `sampler.values().period(true);`
+* Read from the results by `sample_record.period().value();`
 
-### `perf::Sampler::Type::LogicalMemAddress`
-The logical (or virtual) memory address.
-Can be accessed via `sample.logical_memory_address()`.
-From our experience, this only works on Intel hardware (ARM might work, too) and only with specific triggers.
-You may need to adjust the `sample_config.precise_ip(X)` setting on different hardware (ranging from `0` to `3`).
+### Identifier
+* Request by `sampler.values().identifier(true);`
+* Read from the results by `sample_record.id().value();`
 
-&rarr; [See example](../examples/address_sampling.cpp)
+### Instruction Pointer
+Address of the executed instruction at the moment the hardware captured the sample. 
+Consider examining the [precision](#precision) configuration, as the sampled instruction pointer may not always be precise.
 
-### `perf::Sampler::Type::CounterValues`
-Multiple counter values. Additional counter values to record must be specified along with the trigger (which is the first counter in the list):
-```cpp
-auto sampler = perf::Sampler{
-    counter_definitions,
-    {"instruction", "cycles", "cache-misses"},
-    ...
-};
-```
+* Request by `sampler.values().instruction_pointer(true);`
+* Read from the results by `sample_record.instruction_pointer().value()`
 
-The results are retrievable through the `sample.counter_result()` method, returning an instance of `perf::CounterResult`. 
-This can be accessed in the same manner as when recording counters. 
-For example, to access the "cycles" counter, you would use `sample.counter_result().value().get("cycles")`.
+Additionally, you can determine if the captured instruction pointer was exact by querying `sample_record.is_exact_ip()`, which returns a `bool`.
 
-&rarr; [See example](../examples/counter_sampling.cpp)
+&rarr; [See code example](../examples/instruction_pointer_sampling.cpp)
 
-### `perf::Sampler::Type::Callchain`
+### Callchain
 Callchain as a list of instruction pointers.
-Can be accessed via `sample.callchain()`, which returns a vector of `std::uintptr_t` instruction pointers.
 
-### `perf::Sampler::Type::CPU`
-CPU id, accessible via `sample.cpu_id()`.
+* Request by `sampler.values().callchain(true);` or `sampler.values().callchain(M);` where `M` is a `std::uint16_t` defining the maximum call stack size.
+* Read from the results by `sample_record.callchain().value();`, which returns a `std::vector<std::uintptr_t>` of instruction pointers.
 
-&rarr; [See example](../examples/instruction_pointer_sampling.cpp)
+### Registers in user-level
+Values of registers within the user-level.
 
-### `perf::Sampler::Type::Period`
-Sample period, accessible via `sample.period()`.
+* Request by `sampler.values().user_registers( { perf::Registers::x86::IP, perf::Registers::x86::DI, perf::Registers::x86::R10 });`
+* Read from the results by `sample_record.user_registers().value()[0];` (`0` for the first register, `perf::Registers::x86::IP` in this example)
+* The ABI can be queried using `sample_record.user_registers_abi()`.
 
-### `perf::Sampler::Type::BranchStack`
+
+&rarr; [See code example](../examples/register_sampling.cpp)
+
+### Registers in kernel-level
+Values of registers within the kernel-level.
+
+* Request by `sampler.values().kernel_registers( { perf::Registers::x86::IP, perf::Registers::x86::DI, perf::Registers::x86::R10 });`
+* Read from the results by `sample_record.kernel_registers().value()[0];` (`0` for the first register, `perf::Registers::x86::IP` in this example)
+* The ABI can be queried using `sample_record.kernel_registers_abi()`.
+
+&rarr; [See example](../examples/register_sampling.cpp)
+
+### ID of the recording Thread
+* Request by `sampler.values().thread_id(true);`
+* Read from the results by `sample_record.thread_id().value()`
+
+### ID of the recording CPU
+* Request by `sampler.values().cpu_id(true);`
+* Read from the results by `sample_record.cpu_id().value();`
+
+&rarr; [See code example](../examples/instruction_pointer_sampling.cpp)
+
+### Size of the Code Page
+Size of pages of sampled instruction pointers (e.g., when sampling for instruction pointers).
+Sampling the code page size requires a Linux Kernel version of `5.11` or higher.
+
+* Request by `sampler.values().code_page_size(true);`
+* Read from the results by `sample_record.code_page_size().value();`
+
+### Performance Counter Values
+Record hardware performance counter values at the time of the record.
+
+* Request by `sampler.values().counter({"instructions", "cache-misses"});`
+* Read from the results by `sample_record.counter_result().value().get("cache-misses");`. This can be accessed in the same manner as when recording counters.
+
+&rarr; [See code example](../examples/counter_sampling.cpp)
+
+### Branch Stack (LBR)
 Branch history with jump addresses and flag if predicted correctly.
-The result can be accessed through `sample.branches()`, which returns a vector of `perf::Branch`.
+
+#### Request recording
+```cpp
+sampler.values().branch_stack({ perf::BranchType::User, perf::BranchType::Conditional });
+```
+The possible branch type values are:
+* `perf::BranchType::User`: Sample branches in user mode.
+* `perf::BranchType::Kernel`: Sample kernel branches.
+* `perf::BranchType::HyperVisor`: Sample branches in HV mode.
+* `perf::BranchType::Any` (the default): Sample all branches.
+* `perf::BranchType::Call`: Sample any call (direct, indirect, far jumps).
+* `perf::BranchType::DirectCall`: Sample direct call (requires Linux Kernel `4.4` or higher).
+* `perf::BranchType::IndirectCall`: Sample indirect call.
+* `perf::BranchType::Return`: Sample return branches.
+* `perf::BranchType::IndirectJump`: Sample indirect jumps (requires Linux Kernel `4.2` or higher).
+* `perf::BranchType::Conditional`: Sample conditional branches.
+* `perf::BranchType::TransactionalMemoryAbort`: Sample branches that abort transactional memory.
+* `perf::BranchType::InTransaction`: Sample branches in transactions of transactional memory.
+* `perf::BranchType::NotInTransaction`: Sample branches not in transactions of transactional memory.
+
+#### Read from the results
+Read from the results by `sample_record.branches()`, which returns a vector of `perf::Branch`.
+
 Each `perf::Branch` instance has the following values:
 * Instruction pointer from where the branch started (`branch.instruction_pointer_from()`).
 * Instruction pointer from where the branch ended (`branch.instruction_pointer_to()`).
@@ -188,116 +358,269 @@ Each `perf::Branch` instance has the following values:
 * A flag that indicates if the branch was a transaction abort (`branch.is_transaction_abort()`).
 * Cycles since the last branch (`branch.cycles()`) (`0` if not supported by the hardware).
 
-In addition, the type of sampled branches can be restricted by passing the type of wanted branches into `SampleConfig::branch_type`, for example:
+&rarr; [See code example](../examples/branch_sampling.cpp)
 
-```cpp
-/// Sample only conditional branches in user mode.
-auto sample_config = perf::SampleConfig{};
-sample_config.branch_type(perf::BranchType::User | perf::BranchType::Conditional);
-```
+### Physical Memory Address
+Sampling the physical memory address requires a Linux Kernel version of `4.13` or higher.
 
-The possible branch type values are:
-* `perf::BranchType::User`: Sample branches in user mode.
-* `perf::BranchType::Kernel`: Sample kernel branches.
-* `perf::BranchType::HyperVisor`: Sample branches in HV mode.
-* `perf::BranchType::Any` (the default): Sample all branches.
-* `perf::BranchType::Call`: Sample any call (direct, indirect, far jumps).
-* `perf::BranchType::DirectCall`: Sample direct call.
-* `perf::BranchType::IndirectCall`: Sample indirect call.
-* `perf::BranchType::Return`: Sample return branches.
-* `perf::BranchType::IndirectJump`: Sample indirect jumps.
-* `perf::BranchType::Conditional`: Sample conditional branches.
-* `perf::BranchType::TransactionalMemoryAbort`: Sample branches that abort transactional memory.
-* `perf::BranchType::InTransaction`: Sample branches in transactions of transactional memory.
-* `perf::BranchType::NotInTransaction`: Sample branches not in transactions of transactional memory.
+* Request by `sampler.values().physical_memory_address(true);`
+* Read from the results by `sample_record.physical_memory_address().value();`
 
-&rarr; [See example](../examples/branch_sampling.cpp)
+Memory sampling can be tricky; refer to the [specifics of the underlying hardware](#specific-notes-for-different-cpu-vendors) since memory sampling requires distinct triggers across different hardware platforms.
 
-### `perf::Sampler::Type::UserRegisters`
-Values of user registers (the values in the process before the kernel was called).
-The values that should be sampled must be set before sampling (see `SampleConfig::user_registers`, e.g., `perf_config.user_registers(perf::Registers{{ perf::Registers::x86::AX, perf::Registers::x86::DI, perf::Registers::x86::R10 }});`).
-The result can be accessed through `sample.user_registers()`, which returns a vector of `std::uint64_t` values.
-The ABI can be queried using `sample.user_registers_abi()`.
+### Logical Memory Address
+* Request by `sampler.values().logical_memory_address(true);`
+* Read from the results by `sample_record.logical_memory_address().value()`
 
-&rarr; [See example](../examples/register_sampling.cpp)
+Memory sampling can be tricky; refer to the [specifics of the underlying hardware](#specific-notes-for-different-cpu-vendors) since memory sampling requires distinct triggers across different hardware platforms.
 
-### `perf::Sampler::Type::KernelRegisters`
-Values of user registers (the values in the process when the kernel was called).
-The values that should be sampled must be set before sampling (see `SampleConfig::kernel_registers`, e.g., `perf_config.kernel_registers(perf::Registers{{ perf::Registers::x86::AX, perf::Registers::x86::DI, perf::Registers::x86::R10 }});`).
-The result can be accessed through `sample.kernel_registers()`, which returns a vector of `std::uint64_t` values.
-The ABI can be queried using `sample.kernel_registers_abi()`.
+&rarr; [See code example](../examples/address_sampling.cpp)
 
-&rarr; [See example](../examples/register_sampling.cpp)
+### Memory Access Latency
+The weight (and weight struct) indicates how costly the event was (basically the latency).
+Since Linux Kernel version `5.12`, the Kernel might generate more information than only a single value, which is used to differentiate between **memory-** (from cache towards memory) and **instruction latency**.
 
-### `perf::Sampler::Type::Weight` (Linux Kernel `< 5.12`) / `perf::Sampler::Type::WeightStruct` (since Kernel `5.12`)
-The weight indicates how costly the event was.
-From our experience, the access latency and can only be accessed on Intel hardware (ARM may work, too).
-Since Linux Kernel version `5.12`, the Kernel might generate more information than only the "weight".
-Can be accessed via `sample.weight()`, which returns a `perf::Weight` class, which has the following attributes:
-* `sample.weight().value().latency()` returns the latency (for both `perf::Sampler::Type::Weight` and `perf::Sampler::Type::WeightStruct`).
-* `sample.weight().value().var2()` returns "other information" (not specified by perf) **but** only for `perf::Sampler::Type::WeightStruct`. On Intel's Sapphire Rapids architecture, it seems to record the instruction latency (which is higher than the load latency and includes the latter).
-* `sample.weight().value().var3()` returns "other information" (not specified by perf) **but** only for `perf::Sampler::Type::WeightStruct`.
+* Request by `sampler.values().weight(true);` or `sampler.values().weight_struct(true);` (**the latter only from Kernel `5.12`**)
+* Read from the results by `sample_record.weight().value();`, which returns a `perf::Weight` class, which has the following attributes:
+  * `sample_record.weight().value().cache_latency()` returns the cache latency of the sampled data address (for both `sampler.values().weight(true)` and `sampler.values().weight_struct(true)`).
+  * `sample_record.weight().value().instruction_retirement_latency()` returns the latency of retiring the instruction (including the cache access) **but** only for `sampler.values().weight_struct(true)`. To the best of our knowledge, this feature is only supported by new Intel generations.
+  * `sample_record.weight().value().var3()` returns "other information" (not specified by perf) **but** only for `sampler.values().weight_struct(true)`.
 
-&rarr; [See example](../examples/address_sampling.cpp)
+&rarr; [See code example](../examples/address_sampling.cpp)
 
-#### Specific Notice for Intel's Sapphire Rapids architecture
-To use weight-sampling on Intel's Sapphire Rapids architecture, perf needs an auxiliary counter to be added to the group, before the "real" counter is added (see [this commit](https://lore.kernel.org/lkml/1612296553-21962-3-git-send-email-kan.liang@linux.intel.com/)).
-*perf-cpp*  defines this counter, you only need to add it accordingly:
+**Note** that memory sampling depends on the underlying sampling mechanism. &rarr; [See hardware-specific information (e.g., Intel PEBS vs AMD IBS)](#specific-notes-for-different-cpu-vendors)
 
-```cpp
- auto sampler = perf::Sampler{ counter_definitions,
-                   std::vector<std::string>{/* helper: */"mem-loads-aux", 
-                                            /* real counter: */ "your-memory-counter"},
-                   perf::Sampler::Type::Time 
-                    | perf::Sampler::Type::LogicalMemAddress 
-                    | perf::Sampler::Type::DataSource 
-                    | perf::Sampler::Type::WeightStruct,
-                   perf_config };
-```
-
-The sampler will detect that auxiliary counter automatically.
-
-### `perf::Sampler::Type::DataSource`
+### Data Source of a Memory Load
 Data source where the data was sampled (e.g., local mem, remote mem, L1d, L2, ...).
-From our experience, this only works on Intel hardware (ARM might work, too) and only with specific triggers.
 
-The data source can be accessed via `sample.data_source()`, which provides a specific `perf::DataSource` object.
-The `perf::DataSource` object can be queried if ...
-* ... the data was loaded (`sample.data_source().value().is_load()`)
-  * or stored (`sample.data_source().value().is_store()`)
-  * or prefetched (`sample.data_source().value().is_prefetch()`)
-* ... the data was a (memory subsystem related) hit (`sample.data_source().value().is_mem_hit()`)
-  * or miss (`sample.data_source().value().is_mem_miss()`)
-* ... the data was found (or missed) in the L1 data cache (`sample.data_source().value().is_mem_l1()`)
-  * or Line Fill Buffer / Miss Address Buffer (`sample.data_source().value().is_mem_lfb()`)
-  * or L2 cache (`sample.data_source().value().is_mem_l2()`)
-  * or L3 cache (`sample.data_source().value().is_mem_l3()`)
-  * or local memory (`sample.data_source().value().is_mem_local_ram()`)
-  * or remote memory with one hop distance (`sample.data_source().value().is_mem_remote_ram1()`)
-  * or remote memory with two hops distance (`sample.data_source().value().is_mem_remote_ram2()`)
-  * or remote cache with one hop distance (`sample.data_source().value().is_mem_remote_cce1()`)
-  * or remote cache with two hops distance (`sample.data_source().value().is_mem_remote_cce2()`)
-* ... the data was a TLB hit (`sample.data_source().value().is_tlb_hit()`)
-  * or miss (`sample.data_source().value().is_tlb_miss()`)
-* ... the dTLB was accessed (`sample.data_source().value().is_tlb_l1()`)
-  * or the STLB was accessed (`sample.data_source().value().is_tlb_l2()`)
+* Request by `sampler.values().data_src(true);`
+* Read from the results by `sample_record.data_src().value();` which returns a specific `perf::DataSource` object
 
-&rarr; [See example](../examples/address_sampling.cpp)
+The `perf::DataSource` object can be queried for the following information:
 
-### `perf::Sampler::Type::Identifier`
-Sample id, accessible via `sample.id()`.
+| Query                                               | Information                                                                            |
+|-----------------------------------------------------|----------------------------------------------------------------------------------------|
+| `sample_record.data_src().value().is_load()`            | `True`, if the access was a load operation.                                            |
+| `sample_record.data_src().value().is_store()`           | `True`, if the access was a store operation.                                           |
+| `sample_record.data_src().value().is_prefetch()`        | `True`, if the access was a prefetch operation.                                        |
+| `sample_record.data_src().value().is_exec()`            | `True`, if the access was an execute operation.                                        |
+| `sample_record.data_src().value().is_mem_hit()`         | `True`, if the access was a hit.                                                       |
+| `sample_record.data_src().value().is_mem_miss()`        | `True`, if the access was a miss.                                                      |
+| `sample_record.data_src().value().is_mem_hit()`         | `True`, if the access was a hit.                                                       |
+| `sample_record.data_src().value().is_mem_l1()`          | `True`, if the data was found in the L1 cache.                                         |
+| `sample_record.data_src().value().is_mem_l2()`          | `True`, if the data was found in the L2 cache.                                         |
+| `sample_record.data_src().value().is_mem_l3()`          | `True`, if the data was found in the L3 cache.                                         |
+| `sample_record.data_src().value().is_mem_l4()`          | `True`, if the data was found in the L4 cache.                                         |
+| `sample_record.data_src().value().is_mem_lfb()`         | `True`, if the data was found in the Line Fill Buffer (or Miss Address Buffer on AMD). |
+| `sample_record.data_src().value().is_mem_ram()`         | `True`, if the data was found in any RAM.                                              |
+| `sample_record.data_src().value().is_mem_local_ram()`   | `True`, if the data was found in the local RAM.                                        |
+| `sample_record.data_src().value().is_mem_remote_ram()`  | `True`, if the data was found in any remote RAM.                                       |
+| `sample_record.data_src().value().is_mem_hops0()`       | `True`, if the data was found locally.                                                 |
+| `sample_record.data_src().value().is_mem_hops1()`       | `True`, if the data was found on the same node.                                        |
+| `sample_record.data_src().value().is_mem_hops2()`       | `True`, if the data was found on a remote socket.                                      |
+| `sample_record.data_src().value().is_mem_hops3()`       | `True`, if the data was found on a remote board.                                       |
+| `sample_record.data_src().value().is_mem_remote_ram1()` | `True`, if the data was found in a remote RAM on the same node.                        |
+| `sample_record.data_src().value().is_mem_remote_ram2()` | `True`, if the data was found in a remote RAM on a different socket.                   |
+| `sample_record.data_src().value().is_mem_remote_ram3()` | `True`, if the data was found in a remote RAM on a different board.                    |
+| `sample_record.data_src().value().is_mem_remote_cce1()` | `True`, if the data was found in cache with one hop distance.                          |
+| `sample_record.data_src().value().is_mem_remote_cce2()` | `True`, if the data was found in cache with two hops distance.                         |
+| `sample_record.data_src().value().is_pmem()`            | `True`, if the data was found on a PMEM device.                                        |
+| `sample_record.data_src().value().is_cxl()`             | `True`, if the data was transferred via Compute Express Link.                          |
+| `sample_record.data_src().value().is_tlb_hit()`         | `True`, if the access was a TLB hit.                                                   |
+| `sample_record.data_src().value().is_tlb_miss()`        | `True`, if the access was a TLB miss.                                                  |
+| `sample_record.data_src().value().is_tlb_l1()`          | `True`, if the access can be associated with the dTLB.                                 |
+| `sample_record.data_src().value().is_tlb_l2()`          | `True`, if the access can be associated with the STLB.                                 |
+| `sample_record.data_src().value().is_tlb_walk()`        | `True`, if the access can be associated with the hardware walker.                      |
+| `sample_record.data_src().value().is_locked()`          | `True`, If the address was accessed via lock instruction.                              |
+| `sample_record.data_src().value().is_data_blocked()`    | `True` in case the data could not be forwarded.                                        |
+| `sample_record.data_src().value().is_address_blocked()` | `True` in case of an address conflict.                                                 |
+| `sample_record.data_src().value().is_snoop_hit()`       | `True`, if access was a snoop hit.                                                     |
+| `sample_record.data_src().value().is_snoop_miss()`      | `True`, if access was a snoop miss.                                                    |
+| `sample_record.data_src().value().is_snoop_hit_modified()`          | `True`, if access was a snoop hit modified.                                            |
 
-### `perf::Sampler::Type::PhysicalMemAddress`
-The physical memory address.
-Can be accessed via `sample.physical_memory_address()`.
-From our experience, this only works on Intel hardware (ARM might work, too) and only with specific triggers.
-You may need to adjust the `sample_config.precise_ip(X)` setting on different hardware (ranging from `0` to `3`).
+All these queries wrap around the `perf_mem_data_src` data structure.
+Since we may have missed specific operations, you can also access each particular data structure:
+* `sample_record.data_src().value().op()` accesses the `PERF_MEM_OP` structure.
+* `sample_record.data_src().value().lvl()` accesses the `PERF_MEM_LVL` structure. Note that this structure is deprecated, use `sample_record.data_src().value().lvl_num()` instead.
+* `sample_record.data_src().value().lvl_num()` accesses the `PERF_MEM_LVL_NUM` structure.
+* `sample_record.data_src().value().remote()` accesses the `PERF_MEM_REMOTE` structure.
+* `sample_record.data_src().value().snoop()` accesses the `PERF_MEM_SNOOP` structure.
+* `sample_record.data_src().value().snoopx()` accesses the `PERF_MEM_SNOOPX` structure.
+* `sample_record.data_src().value().lock()` accesses the `PERF_MEM_LOCK` structure.
+* `sample_record.data_src().value().blk()` accesses the `PERF_MEM_BLK` structure.
+* `sample_record.data_src().value().tlb()` accesses the `PERF_MEM_TLB` structure.
+* `sample_record.data_src().value().hops()` accesses the `PERF_MEM_HOPS` structure.
 
-### `perf::Sampler::Type::DataPageSize`
-Size of pages of sampled data addresses (e.g., when sampling for `perf::Sample::Type::LogicalMemoryAddress`).
-Can be accessed via `sample.data_page_size()`.
+&rarr; [See code example](../examples/address_sampling.cpp)
 
-### `perf::Sampler::Type::CodePageSize`
-Size of pages of sampled instruction pointers (e.g., when sampling for `perf::Sample::Type::InstructionPointer`).
-Can be accessed via `sample.code_page_size()`.
+**Note** that memory sampling depends on the underlying sampling mechanism. &rarr; [See hardware-specific information (e.g., Intel PEBS vs AMD IBS)](#specific-notes-for-different-cpu-vendors)
 
+### Size of the Data Page
+Size of pages of sampled data addresses (e.g., when sampling for logical memory address).
+Sampling the data page size requires a Linux Kernel version of `5.11` or higher.
+
+* Request by `sampler.values().data_page_size(true);`
+* Read from the results by `sample_record.data_page_size().value();`
+
+### Transaction Abort
+Reports the reason for an abort of a transactional memory transaction.
+
+* Request by `sampler.values().transaction_abort(true);`
+* Read from the results by `sample_record.transaction_abort().value();`, which returns an instance of the type `perf::TransactionAbort`. The abort can be queried by:
+  * `sample_record.transaction_abort().value().is_elision()`, which returns `true`, if the abort comes from an elision type transaction (Intel-specific).
+  * `sample_record.transaction_abort().value().is_transaction()`, which returns `true`, if the abort comes a generic transaction.
+  * `sample_record.transaction_abort().value().is_synchronous()`, which returns `true`, if the abort is synchronous.
+  * `sample_record.transaction_abort().value().is_asynchronous()`, which returns `true`, if the abort is asynchronous.
+  * `sample_record.transaction_abort().value().is_retry()`, which returns `true`, if the abort is retryable.
+  * `sample_record.transaction_abort().value().is_conflict()`, which returns `true`, if the abort is due to a conflict.
+  * `sample_record.transaction_abort().value().is_capacity_write()`, which returns `true`, if the abort is due to write capacity.
+  * `sample_record.transaction_abort().value().is_capacity_read()`, which returns `true`, if the abort is due to read capacity.
+  * In addition, `sample_record.transaction_abort().value().code()` returns the abort-code for a transaction as specified by the user.
+
+### Raw Values
+Hardware will record different data, depending on the CPU generation and manufacture.
+While the perf subsystem will parse the data and map it to a generalized interface, the raw data can also be accessed using raw sampling.
+
+* Request by `sampler.values().raw(true);`
+* Read the results by `sample_record.raw().value();`
+
+&rarr; [See code example for AMD IBS](../examples/amd_ibs_raw_sampling.cpp) (more information about how to access the raw data is provided by the [AMD manual](https://www.amd.com/content/dam/amd/en/documents/processor-tech-docs/programmer-references/24593.pdf) from page 428)
+
+### Context Switches
+Occurrence of context switches.
+Sampling context switches requires a Linux Kernel version of `4.3` or higher.
+* Request by `sampler.values().context_switch(true);`
+* Read from the results by `sample_record.context_switch().value();` (if `sample_record.context_switch().has_value();`), which returns a `perf::ContextSwitch` object. The context switch contains
+  * a flag if the process was switched in or out (`context_switch.is_in()` or `context_switch.is_out()`),
+  * a flag of the process was preempted (`context_switch.is_preempt()`) (**only** from Linux Kernel `4.17`),
+  * the id of the in or out process, if sampling cpu-wide (`context_switch.process_id()`),
+  * and the id of the in or out thread, if sampling cpu-wide (`context_switch.thread_id()`).
+  * In addition, the following data will be set in a sample:
+    * `sample_record.process_id()` and `sample_record.thread_id()`, if `sampler.thread_id(true)` was specified,
+    * `sample_record.timestamp()`, if `sampler.time(true)` was specified,
+    * `sample_record.stream_id()`, if `sampler.stream_id(true)` was specified,
+    * `sample_record.cpu_id()`, if `sampler.cpu_id(true)` was specified, and
+    * `sample_record.id()`, if `sampler.identifier(true)` was specified.
+
+&rarr; [See code example](../examples/context_switch_sampling.cpp)
+
+### CGroup
+Sampling cgroups requires a Linux Kernel version of `5.7` or higher.
+
+* Request by `sampler.values().cgroup(true);`
+* CGroup IDs are included into samples and can be read by `sample_record.cgroup_id().value();` 
+* Whenever new cgroups are created or activated, the sample can include a `perf::CGroup` item, containing the ID of the created/activated cgroup (`sample_record.cgroup().value().id();`), which matches one of the `cgroup_id()`s of the sample. `perf::CGroup` also contains a path, which can be accessed by `sample_record.cgroup().value().path();`.
+* In addition, the following data will be set in a sample:
+  * `sample_record.process_id()` and `sample_record.thread_id()`, if `sampler.thread_id(true)` was specified,
+  * `sample_record.timestamp()`, if `sampler.time(true)` was specified,
+  * `sample_record.stream_id()`, if `sampler.stream_id(true)` was specified,
+  * `sample_record.cpu_id()`, if `sampler.cpu_id(true)` was specified, and
+  * `sample_record.id()`, if `sampler.identifier(true)` was specified.
+
+### Throttle and Unthrottle Events
+* Request by `sampler.values().throttle(true);`
+* Throttle events are included into samples and can be read by `sample_record.throttle().value();`, which returns an optional `perf::Throttle` object. The throttle object contains a flag indicating
+  * that it was a throttle event (`sample_record.throttle().value().is_throttle();`)
+  * or it was an unthrottle event (`sample_record.throttle().value().is_unthrottle();`). Only one of both will return `true`.
+* In addition, the following data will be set in a sample:
+  * `sample_record.process_id()` and `sample_record.thread_id()`, if `sampler.thread_id(true)` was specified,
+  * `sample_record.timestamp()`, if `sampler.time(true)` was specified,
+  * `sample_record.stream_id()`, if `sampler.stream_id(true)` was specified,
+  * `sample_record.cpu_id()`, if `sampler.cpu_id(true)` was specified, and
+  * `sample_record.id()`, if `sampler.identifier(true)` was specified.
+
+## Sample mode
+Each sample is recorded in one of the following modes:
+* `perf::Sample::Mode::Unknown`
+* `perf::Sample::Mode::Kernel`
+* `perf::Sample::Mode::User`
+* `perf::Sample::Mode::Hypervisor`
+* `perf::Sample::Mode::GuestKernel`
+* `perf::Sample::Mode::GuestUser`
+
+You can check the mode via `sample_record.mode()`, for example:
+```cpp
+for (const auto& sample_record : result)
+{
+  if (sample_record.mode() == perf::Sample::Mode::Kernel)
+  {
+    std::cout << "Sample in Kernel" << std::endl;      
+  }
+  else if (sample_record.mode() == perf::Sample::Mode::User)
+  {
+    std::cout << "Sample in User" << std::endl;      
+  }
+}
+```
+
+## Lost Samples
+Sample records may be lost, for example, if the buffer is full or the CPU is heavily loaded. 
+Such losses are documented and reported through `sample_record.count_loss()`, which returns `std::nullopt` for regular samples and an integer for the number of samples lost, as reported by the perf subsystem.
+
+In addition, the following data will be set in a sample:
+* `sample_record.process_id()` and `sample_record.thread_id()`, if `sampler.thread_id(true)` was specified,
+* `sample_record.timestamp()`, if `sampler.time(true)` was specified,
+* `sample_record.stream_id()`, if `sampler.stream_id(true)` was specified,
+* `sample_record.cpu_id()`, if `sampler.cpu_id(true)` was specified, and
+* `sample_record.id()`, if `sampler.identifier(true)` was specified.
+
+## Specific Notes for different CPU Vendors
+### Intel (PEBS)
+Especially for sampling memory addresses, latency, and data source, the perf subsystem needs specific events as triggers.
+On Intel, the `perf list` command reports these triggers as "*Supports address when precise*".
+
+*perf-cpp*  will discover `mem-loads` and `mem-stores` events when running on Intel hardware that supports sampling for memory.
+
+Additionally, memory sampling typically requires a [precision](#precision) setting of at least `perf::Precision::RequestZeroSkid`.
+
+#### Before Sapphire Rapids
+From our experience, Intel's Cascade Lake architecture (and earlier architectures) only reports latency and source for memory loads, not stores – this changes from Sapphire Rapids.
+
+#### Sapphire Rapids
+To use weight-sampling on Intel's Sapphire Rapids architecture, the perf subsystem needs an auxiliary counter to be added to the group, before the first "real" counter is added (see [this commit](https://lore.kernel.org/lkml/1612296553-21962-3-git-send-email-kan.liang@linux.intel.com/)).
+*perf-cpp*  will define this counter, you only need to add it accordingly.
+
+```cpp
+sampler.trigger({
+    { 
+        perf::Sampler::Trigger{"mem-loads-aux", perf::Precision::MustHaveZeroSkid}, /// Helper
+        perf::Sampler::Trigger{"mem-loads", perf::Precision::RequestZeroSkid}           /// First "real" counter
+    },
+    { perf::Sampler::Trigger{"mem-stores", perf::Precision::MustHaveZeroSkid} }         /// Other "real" counters.
+  });
+```
+
+&rarr; [See code example](../examples/multi_event_sampling.cpp)
+
+### AMD (Instruction Based Sampling)
+AMD uses Instruction Based Sampling to tag instructions randomly for sampling and collect various information for each sample ([see the programmer reference](https://www.amd.com/content/dam/amd/en/documents/processor-tech-docs/programmer-references/24593.pdf)).
+In contrast to Intel's mechanism, IBS cannot tag specific load and store instructions (and apply a filter on the latency).
+In case the instruction was a load/store instruction, the sample will include data source, latency, and a memory address ([see kernel mailing list](https://lore.kernel.org/all/20220616113638.900-2-ravi.bangoria@amd.com/T/)).
+
+*perf-cpp* –or the `perf::CounterDefinition` class to be precise– will detect IBS support on AMD devices and adds the following counters that can be used as **trigger** for sampling on AMD:
+* `ibs_op` selects instructions during the execution pipeline. CPU cycles (on the specified period/frequency) will lead to tag an instruction.
+* `ibs_op_uops` selects instructions during the execution pipeline, **but** the period/frequency refers to the number of executed micro-operations, **not** CPU cycles.
+* `ibs_op_l3missonly` selects instructions during the execution pipeline that miss the L3 cache. CPU cycles are used as the trigger.
+* `ibs_op_uops_l3missonly` selects instructions during the execution pipeline that miss the L3 cache, using micro-operations as the trigger.
+* `ibs_fetch` selects instructions in the fetch-state (frontend) using cycles as the trigger.
+* `ibs_fetch_l3missonly` selects instructions in the fetch-state (frontend) that miss the L3 cache, again, using cycles as a trigger.
+---
+
+## Debugging Counter Settings
+In certain scenarios, configuring counters for sampling can be challenging, as settings (e.g., `precise_ip`) may need to be adjusted for different machines.
+To facilitate this process, perf provides a debug output option:
+
+
+    perf --debug perf-event-open [mem] record ...
+
+
+This command helps visualize configurations for various counters, which is also beneficial for retrieving event codes (for more details, see the [counters documentation](counters.md)).
+
+Similarly, *perf-cpp* includes a debug feature for sampled counters.
+To examine the configuration settings—particularly useful if encountering errors during `sampler.start();`—enable debugging in your code as follows:
+
+```cpp
+sample_config.is_debug(true);
+```
+
+When `is_debug` is set to `true`, *perf-cpp* will display the configuration of all counters upon initiating sampling.

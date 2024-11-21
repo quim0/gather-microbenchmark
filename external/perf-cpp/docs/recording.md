@@ -1,28 +1,48 @@
-# Recording performance counters
+# Recording Performance Counters
 
 Here, we introduce the interface designed to facilitate the recording of performance counters directly from your C++ application. 
 
-&rarr; [See our single-threaded example: `examples/single_thread.cpp`](../examples/single_thread.cpp)
+&rarr; [See our single-threaded code example: `examples/single_thread.cpp`](../examples/single_thread.cpp)
 
-## 1) Define the counters you want to record
+---
+## Table of Contents
+- [1) Define the Counters to Record](#1-define-the-counters-to-record)
+- [2) Wrap `start()` and `stop()` around the Processing Code](#2-wrap-start-and-stop-around-the-processing-code)
+- [3) Access the Results](#3-access-the-results)
+- [Example: Impact of Random Access Patterns](#example-impact-of-random-access-patterns)
+- [Debugging Counter Settings](#debugging-counter-settings)
+---
+
+## 1) Define the Counters to record
 ```cpp
 #include <perfcpp/event_counter.h>
-auto counter_definitions = perf::CounterDefinition{};
-auto event_counter = perf::EventCounter{counter_definitions};
 
-event_counter.add({"instructions", "cycles", "branches", "branch-misses", "cache-misses", "cache-references"});
+/// The perf::CounterDefinition object holds all counter names and must be alive when counters are accessed.
+auto counter_definitions = perf::CounterDefinition{}; 
+
+auto event_counter = perf::EventCounter{counter_definitions};
+try {
+    event_counter.add({"instructions", "cycles", "branches", "branch-misses", "cache-misses", "cache-references"});
+} catch (std::runtime_error& e) {
+    std::cerr << e.what() << std::endl;
+}
 ```
 
-## 2) Wrap `start()` and `stop()` around your processing code
+## 2) Wrap `start()` and `stop()` around the Processing Code
 ```cpp
-event_counter.start();
+try {
+    event_counter.start();
+} catch (std::runtime_error& e) {
+    std::cerr << e.what() << std::endl;
+    return 1;
+}
 
 /// ... do some computational work here...
 
 event_counter.stop();
 ```
 
-## 3) Access the counter
+## 3) Access the Results
 ```cpp
 /// Calculate the result.
 const auto result = event_counter.result();
@@ -37,12 +57,15 @@ for (const auto [name, value] : result)
     std::cout << "Counter " << name << " = " << value << std::endl;
 }
 
-/// Or print in CSV and JSON.
+//// Or print results as table.
+std::cout << result.to_string() << std::endl;
+
+/// Or get as CSV and JSON.
 std::cout << result.to_csv(/* delimiter = */'|', /* print header = */ true) << std::endl;
 std::cout << result.to_json() << std::endl;
 ```
 ---
-## Example: Accessing memory in a random fashion
+## Example: Impact of Random Access Patterns
 Random access patterns invariably incur high costs, as hardware prefetchers struggle to anticipate such patterns. 
 Let's delve into precisely how costly this can be.
 
@@ -62,7 +85,11 @@ int main()
     /// Initialize performance counters.
     auto counter_definitions = perf::CounterDefinition{};
     auto event_counter = perf::EventCounter{counter_definitions};
-    event_counter.add({"instructions", "cycles", "branches", "cache-misses", "cycles-per-instruction"});
+    try {
+        event_counter.add({"instructions", "cycles", "branches", "cache-misses", "cycles-per-instruction"});
+    } catch (std::runtime_error& e) {
+        std::cerr << e.what() << std::endl;
+    }
     
     /// Setup random access benchmark.
     /// Create data to process: Allocate enough cache lines for 256 MB.
@@ -80,9 +107,10 @@ int main()
     std::shuffle(access_pattern_indices.begin(), access_pattern_indices.end(), std::mt19937 {std::random_device{}()});
 
     /// Start recording.
-    if (!event_counter.start())
-    {
-        std::cerr << "Could not start performance counters." << std::endl;
+    try {
+        event_counter.start()
+    } catch (std::runtime_error& e) {
+        std::cerr << e.what() << std::endl;
     }
 
     /// Process the data and force the value to be not optimized away by the compiler.
@@ -115,7 +143,7 @@ The output will be something like that, indicating that we have more than one ca
     1.6294 cache-misses per cache line
     8.03031 cycles-per-instruction per cache line
 
-If you're interested in seeing the outcome with unshuffled `access_pattern_indices`, thereby establishing a predictable access pattern:
+If you're interested in seeing the outcome with not-shuffled `access_pattern_indices`, thereby establishing a predictable access pattern:
 
     6.85057 instructions per cache line
     8.94096 cycles per cache line
@@ -136,11 +164,12 @@ To enable insides into counter configurations, perf provides a debug output opti
 This command helps visualize configurations for various counters, which is also beneficial for retrieving event codes (for more details, see the [counters documentation](counters.md)).
 
 Similarly, *perf-cpp* includes a debug feature for sampled counters.
-To examine the configuration settings—particularly useful if encountering errors during `sampler.start();`—enable debugging in your code as follows:
+To examine the configuration settings—particularly useful if encountering errors during `event_counter.start();`—enable debugging in your code as follows:
 
 ```cpp
 auto config = perf::Config{};
 config.is_debug(true);
+
 auto event_counter = perf::EventCounter{ counter_definitions, config };
 ```
 
