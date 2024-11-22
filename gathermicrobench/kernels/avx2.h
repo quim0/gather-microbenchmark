@@ -44,7 +44,7 @@ void _mm256_loadu_kernel_throughput (
     int32_t index9  = 64, index10 = 72; 
     int32_t index11 = 80, index12 = 88; 
     int32_t index13 = 96; 
-    for (uint64_t i = 0; i < data_size; i++) 
+    for (uint64_t i = 0; i < data_size-1; i++) 
     {
         random_simd1  = _mm256_lddqu_si256((__m256i*)&data[index1]);
         random_simd2  = _mm256_lddqu_si256((__m256i*)&data[index2]);
@@ -59,6 +59,20 @@ void _mm256_loadu_kernel_throughput (
         random_simd11 = _mm256_lddqu_si256((__m256i*)&data[index11]);
         random_simd12 = _mm256_lddqu_si256((__m256i*)&data[index12]);
         random_simd13 = _mm256_lddqu_si256((__m256i*)&data[index13]);
+        index1  = _mm256_extract_epi32(random_simd1, 0);
+        index2  = _mm256_extract_epi32(random_simd2, 0);
+        index3  = _mm256_extract_epi32(random_simd3, 0);
+        index4  = _mm256_extract_epi32(random_simd4, 0);
+        index5  = _mm256_extract_epi32(random_simd5, 0);
+        index6  = _mm256_extract_epi32(random_simd6, 0);
+        index7  = _mm256_extract_epi32(random_simd7, 0);
+        index8  = _mm256_extract_epi32(random_simd8, 0);
+        index9  = _mm256_extract_epi32(random_simd9, 0);
+        index10 = _mm256_extract_epi32(random_simd10, 0);
+        index11 = _mm256_extract_epi32(random_simd11, 0);
+        index12 = _mm256_extract_epi32(random_simd12, 0);
+        index13 = _mm256_extract_epi32(random_simd13, 0);  
+        /*
         index1  = data[index1];  index2  = data[index2]; 
         index3  = data[index3];  index4  = data[index4];
         index5  = data[index5];  index6  = data[index6]; 
@@ -75,6 +89,7 @@ void _mm256_loadu_kernel_throughput (
         do_not_optimize(random_simd9);  do_not_optimize(random_simd10); 
         do_not_optimize(random_simd11); do_not_optimize(random_simd12); 
         do_not_optimize(random_simd13);
+        */
     }
     unused(stride); 
     do_not_optimize(random_simd1);  do_not_optimize(random_simd2); 
