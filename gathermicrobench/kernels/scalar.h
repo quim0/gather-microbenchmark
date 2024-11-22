@@ -39,8 +39,8 @@ void scalar_kernel_throughput(
         case /*STRIDE_4EQUAL*/ 3:
         case /*ALL_SAME*/ 4:
             gather1_index1 = 0; gather1_index2 = 0; gather1_index3 = 0; gather1_index4 = 0;
-            gather2_index1 = 1; gather2_index2 = 1; gather2_index3 = 1; gather2_index4 = 1;
-            gather3_index1 = 2; gather3_index2 = 2; gather3_index3 = 2; gather3_index4 = 2;
+            gather2_index1 = 4; gather2_index2 = 4; gather2_index3 = 4; gather2_index4 = 4;
+            gather3_index1 = 8; gather3_index2 = 8; gather3_index3 = 8; gather3_index4 = 8;
             break;
     }
     for (uint64_t i = 0; i < data_size-1; i++) 

@@ -192,9 +192,11 @@ void _mm512_loadu_kernel_latency (
     int32_t index1 =  0;
     for (uint64_t i = 0; i < data_size; i++) 
     {
-        random_simd1  = _mm512_loadu_si512((__m512i*)&data[index1]);
-        index1  = data[index1];
-        do_not_optimize(random_simd1);
+        random_simd1      = _mm512_loadu_si512((__m512i*)&data[index1]);
+        __m256i aux_simd1 = _mm512_extracti32x8_epi32(random_simd1, 0); 
+        index1            = _mm256_extract_epi32(aux_simd1, 0);
+        //index1  = data[index1];
+        //do_not_optimize(random_simd1);
     }
     unused(stride); 
     do_not_optimize(random_simd1);

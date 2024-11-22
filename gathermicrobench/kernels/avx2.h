@@ -172,8 +172,9 @@ void _mm256_loadu_kernel_latency (
     for (uint64_t i = 0; i < data_size; i++) 
     {
         random_simd1 = _mm256_lddqu_si256((__m256i*)&data[index1]);
-        index1 = data[index1]; 
-        do_not_optimize(random_simd1);
+        index1       = _mm256_extract_epi32(random_simd1, 0);
+      //  index1 = data[index1]; 
+      //  do_not_optimize(random_simd1);
     }
     unused(stride); 
     do_not_optimize(random_simd1);
