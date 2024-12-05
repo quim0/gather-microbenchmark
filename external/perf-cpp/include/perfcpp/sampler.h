@@ -4,6 +4,7 @@
 #include "counter_definition.h"
 #include "feature.h"
 #include "group.h"
+#include "requested_event.h"
 #include "sample.h"
 #include <chrono>
 #include <functional>
@@ -21,50 +22,6 @@ class Sampler
   friend MultiSamplerBase;
 
 public:
-  /**
-   * What to sample.
-   */
-  enum
-    [[deprecated("Sampler::Type will be replaced by Sampler::values() interface from v.0.9.0.")]] Type : std::uint64_t{
-      InstructionPointer = PERF_SAMPLE_IP,
-      ThreadId = PERF_SAMPLE_TID,
-      Time = PERF_SAMPLE_TIME,
-      LogicalMemAddress = PERF_SAMPLE_ADDR,
-      CounterValues = PERF_SAMPLE_READ,
-      Callchain = PERF_SAMPLE_CALLCHAIN,
-      CPU = PERF_SAMPLE_CPU,
-      Period = PERF_SAMPLE_PERIOD,
-      BranchStack = PERF_SAMPLE_BRANCH_STACK,
-      UserRegisters = PERF_SAMPLE_REGS_USER,
-      Weight = PERF_SAMPLE_WEIGHT,
-      DataSource = PERF_SAMPLE_DATA_SRC,
-      Identifier = PERF_SAMPLE_IDENTIFIER,
-      KernelRegisters = PERF_SAMPLE_REGS_INTR,
-#ifndef PERFCPP_NO_SAMPLE_PHYS_ADDR
-      PhysicalMemAddress = PERF_SAMPLE_PHYS_ADDR,
-#else
-      PhysicalMemAddress = std::uint64_t(1U) << 63,
-#endif
-
-#ifndef PERFCPP_NO_SAMPLE_DATA_PAGE_SIZE /// PERF_SAMPLE_DATA_PAGE_SIZE is provided since Linux Kernel 5.11
-      DataPageSize = PERF_SAMPLE_DATA_PAGE_SIZE,
-#else
-      DataPageSize = std::uint64_t(1U) << 63,
-#endif
-
-#ifndef PERFCPP_NO_SAMPLE_CODE_PAGE_SIZE /// PERF_SAMPLE_CODE_PAGE_SIZE is provided since Linux Kernel 5.11
-      CodePageSize = PERF_SAMPLE_CODE_PAGE_SIZE,
-#else
-      CodePageSize = std::uint64_t(1U) << 63,
-#endif
-
-#ifndef PERFCPP_NO_SAMPLE_WEIGHT_STRUCT /// PERF_SAMPLE_WEIGHT_STRUCT is provided since Linux Kernel 5.12
-      WeightStruct = PERF_SAMPLE_WEIGHT_STRUCT
-#else
-      WeightStruct = std::uint64_t(1U) << 63,
-#endif
-    };
-
   class Values
   {
     friend Sampler;
@@ -189,17 +146,24 @@ public:
       return *this;
     }
 
-    Values& physical_memory_address(const bool include) noexcept
+    Values& user_stack(const std::uint32_t max_stack_size) noexcept
     {
-#ifndef PERFCPP_NO_SAMPLE_PHYS_ADDR
+      _max_user_stack = max_stack_size;
+      set(PERF_SAMPLE_STACK_USER, max_stack_size > 0U);
+      return *this;
+    }
+
+    Values& physical_memory_address([[maybe_unused]] const bool include) noexcept
+    {
+#ifndef PERFCPP_NO_SAMPLE_PHYS_ADDR /// Sampling for physical memory address is supported since Linux 4.13
       set(PERF_SAMPLE_PHYS_ADDR, include);
 #endif
       return *this;
     }
 
-    Values& cgroup(const bool include) noexcept
+    Values& cgroup([[maybe_unused]] const bool include) noexcept
     {
-#ifndef PERFCPP_NO_SAMPLE_CGROUP
+#ifndef PERFCPP_NO_SAMPLE_CGROUP /// Sampling cgroup is supported since Linux 5.7
       set(PERF_SAMPLE_CGROUP, include);
 #endif
       return *this;
@@ -207,7 +171,7 @@ public:
 
     Values& data_page_size([[maybe_unused]] const bool include) noexcept
     {
-#ifndef PERFCPP_NO_SAMPLE_DATA_PAGE_SIZE
+#ifndef PERFCPP_NO_SAMPLE_DATA_PAGE_SIZE /// Sampling the data page size is supported since Linux 5.11
       set(PERF_SAMPLE_DATA_PAGE_SIZE, include);
 #endif
       return *this;
@@ -215,7 +179,7 @@ public:
 
     Values& code_page_size([[maybe_unused]] const bool include) noexcept
     {
-#ifndef PERFCPP_NO_SAMPLE_CODE_PAGE_SIZE
+#ifndef PERFCPP_NO_SAMPLE_CODE_PAGE_SIZE /// Sampling the code page size is supported since Linux 5.11
       set(PERF_SAMPLE_CODE_PAGE_SIZE, include);
 #endif
       return *this;
@@ -223,7 +187,8 @@ public:
 
     Values& weight_struct([[maybe_unused]] const bool include) noexcept
     {
-#ifndef PERFCPP_NO_SAMPLE_WEIGHT_STRUCT
+#ifndef PERFCPP_NO_SAMPLE_WEIGHT_STRUCT /// Sampling of weight structs (in contrast to simple weight) is supported since
+                                        /// Linux 5.12
       set(PERF_SAMPLE_WEIGHT_STRUCT, include);
 #endif
       return *this;
@@ -248,6 +213,7 @@ public:
 
     [[nodiscard]] Registers user_registers() const noexcept { return _user_registers; }
     [[nodiscard]] Registers kernel_registers() const noexcept { return _kernel_registers; }
+    [[nodiscard]] std::uint32_t max_user_stack() const noexcept { return _max_user_stack; }
     [[nodiscard]] const std::vector<std::string>& counters() const noexcept { return _counter_names; }
     [[nodiscard]] std::uint64_t branch_mask() const noexcept { return _branch_mask; }
     [[nodiscard]] std::uint16_t max_call_stack() const noexcept { return _max_call_stack; }
@@ -259,6 +225,7 @@ public:
     std::vector<std::string> _counter_names;
     Registers _user_registers;
     Registers _kernel_registers;
+    std::uint32_t _max_user_stack{ 0U };
     std::uint64_t _branch_mask{ 0ULL };
 
     std::uint16_t _max_call_stack{ 0U };
@@ -315,30 +282,6 @@ public:
     std::optional<PeriodOrFrequency> _period_or_frequency{ std::nullopt };
   };
 
-  [[deprecated("Creating samplers with counters and sampling type will be replaced by Sampler::trigger() and "
-               "Sampler::values() interfaces.")]] Sampler(const CounterDefinition& counter_list,
-                                                          const std::string& counter_name,
-                                                          const std::uint64_t type,
-                                                          SampleConfig config = {})
-    : Sampler(counter_list, std::string{ counter_name }, type, config)
-  {
-  }
-
-  [[deprecated("Creating samplers with counters and sampling type will be replaced by Sampler::trigger() and "
-               "Sampler::values() interfaces.")]] Sampler(const CounterDefinition& counter_list,
-                                                          std::string&& counter_name,
-                                                          const std::uint64_t type,
-                                                          SampleConfig config = {})
-    : Sampler(counter_list, std::vector<std::string>{ std::move(counter_name) }, type, config)
-  {
-  }
-
-  [[deprecated("Creating samplers with counters and sampling type will be replaced by Sampler::trigger() and "
-               "Sampler::values() interfaces.")]] Sampler(const CounterDefinition& counter_list,
-                                                          std::vector<std::string>&& counter_names,
-                                                          std::uint64_t type,
-                                                          SampleConfig config = {});
-
   explicit Sampler(const CounterDefinition& counter_list, SampleConfig config = {})
     : _counter_definitions(counter_list)
     , _config(config)
@@ -348,7 +291,7 @@ public:
   Sampler(Sampler&&) noexcept = default;
   Sampler(const Sampler&) = default;
 
-  ~Sampler();
+  ~Sampler() = default;
 
   /**
    * Set the trigger for sampling to a single counter.
@@ -505,21 +448,12 @@ public:
   /**
    * Closes the sampler, including mapped buffer.
    */
-  void close();
+  void close() noexcept;
 
   /**
    * @return List of sampled events after closing the sampler.
    */
   [[nodiscard]] std::vector<Sample> result(bool sort_by_time = true) const;
-
-  /**
-   * @return The latest error reported by the sampler.
-   */
-  [[deprecated("Error handling will be moved to exceptions only.")]] [[nodiscard]] std::int64_t last_error()
-    const noexcept
-  {
-    return _last_error;
-  }
 
 private:
   /**
@@ -534,28 +468,25 @@ private:
       : _group(std::move(group))
     {
     }
-    SampleCounter(Group&& group, std::vector<std::string_view>&& counter_names)
+    SampleCounter(Group&& group, RequestedEventSet&& requested_events)
       : _group(std::move(group))
-      , _counter_names(std::move(counter_names))
+      , _requested_events(std::move(requested_events))
     {
     }
+    SampleCounter(SampleCounter&& other) noexcept = default;
 
-    void buffer(void* buffer) noexcept { _buffer = buffer; }
+    ~SampleCounter();
 
     [[nodiscard]] Group& group() noexcept { return _group; }
     [[nodiscard]] const Group& group() const noexcept { return _group; }
-    [[nodiscard]] void* buffer() const noexcept { return _buffer; }
-    [[nodiscard]] const std::vector<std::string_view>& counter_names() const noexcept { return _counter_names; }
+    [[nodiscard]] const RequestedEventSet& requested_events() const noexcept { return _requested_events; }
 
   private:
     /// Group including the leader that is responsible for sampling.
     Group _group;
 
-    /// User-level, mmap-ed buffer that receives the samples by the perf subsystem.
-    void* _buffer{ nullptr };
-
-    /// List of counter names if counter values are sampled.
-    std::vector<std::string_view> _counter_names;
+    /// List of scheduled events if counter values are sampled.
+    RequestedEventSet _requested_events;
   };
 
   /**
@@ -622,7 +553,7 @@ private:
     }
     [[nodiscard]] bool is_context_switch_event() const noexcept
     {
-#ifndef PERFCPP_NO_RECORD_SWITCH
+#ifndef PERFCPP_NO_RECORD_SWITCH /// Switch events are supported since Linux 4.3
       return _type == PERF_RECORD_SWITCH || _type == PERF_RECORD_SWITCH_CPU_WIDE;
 #else
       return false;
@@ -630,7 +561,7 @@ private:
     }
     [[nodiscard]] bool is_context_switch_cpu_wide() const noexcept
     {
-#ifndef PERFCPP_NO_RECORD_SWITCH
+#ifndef PERFCPP_NO_RECORD_SWITCH /// Switch events are supported since Linux 4.3
       return _type == PERF_RECORD_SWITCH_CPU_WIDE;
 #else
       return false;
@@ -638,7 +569,7 @@ private:
     }
     [[nodiscard]] bool is_cgroup_event() const noexcept
     {
-#ifndef PERFCPP_NO_RECORD_CGROUP
+#ifndef PERFCPP_NO_RECORD_CGROUP /// cgroup events is supported since Linux 5.7
       return _type == PERF_RECORD_CGROUP;
 #else
       return false;
@@ -653,7 +584,7 @@ private:
     [[nodiscard]] bool is_exact_ip() const noexcept { return _misc & PERF_RECORD_MISC_EXACT_IP; }
     [[nodiscard]] bool is_context_switch_out() const noexcept
     {
-#ifndef PERFCPP_NO_RECORD_SWITCH
+#ifndef PERFCPP_NO_RECORD_SWITCH /// Switch events are supported since Linux 4.3
       return _misc & PERF_RECORD_MISC_SWITCH_OUT;
 #else
       return false;
@@ -661,7 +592,7 @@ private:
     }
     [[nodiscard]] bool is_context_switch_out_preempt() const noexcept
     {
-#ifndef PERFCPP_NO_RECORD_MISC_SWITCH_OUT_PREEMPT
+#ifndef PERFCPP_NO_RECORD_MISC_SWITCH_OUT_PREEMPT /// Preempt flag of switch events is supported since Linux 4.3
       return _misc & PERF_RECORD_MISC_SWITCH_OUT_PREEMPT;
 #else
       return false;
@@ -675,57 +606,100 @@ private:
   };
 
   /**
+   * Transforms a list of trigger events into a single SampleCounter that includes a group of hardware events.
+   *
+   * @param triggers List of triggers to transform.
+   *
+   * @return Sample counter, consisting of a group of trigger event(s).
+   */
+  [[nodiscard]] SampleCounter transform_trigger_to_sample_counter(
+    const std::vector<std::tuple<std::string_view, std::optional<Precision>, std::optional<PeriodOrFrequency>>>&
+      triggers) const;
+
+  /**
    * Reads the sample_id struct from the data located at sample_ptr into the provided sample.
    *
    * @param sample Sample to read the data into.
    */
-  void read_sample_id(UserLevelBufferEntry& entry, Sample& sample) const noexcept;
+  void read_sample_id_all(UserLevelBufferEntry& entry, Sample& sample) const noexcept;
 
   /**
    * Translates the current entry from the user-level buffer into a "normal" sample.
    *
    * @param entry Entry of the user-level buffer.
    * @param sample_counter The SampleCounter the entry is linked to in order to get the recorded counters (if any).
-   *
    * @return Sample.
    */
   [[nodiscard]] perf::Sample read_sample_event(UserLevelBufferEntry entry, const SampleCounter& sample_counter) const;
 
   /**
+   * Reads registers from the current buffer entry.
+   *
+   * @param entry Current position at the buffer.
+   * @param count_registers Number of registers requested.
+   * @return Pair of ABI and list of registers (if any).
+   */
+  [[nodiscard]] static std::pair<ABI, std::optional<std::vector<std::uint64_t>>> read_registers(
+    UserLevelBufferEntry& entry,
+    std::uint64_t count_registers);
+
+  /**
+   * Reads hardware events from the current buffer entry.
+   *
+   * @param entry Current position at the buffer.
+   * @param sample_counter The current sample counter including the counter group and counter names.
+   * @return Event values
+   */
+  [[nodiscard]] std::optional<CounterResult> read_hardware_events(UserLevelBufferEntry& entry,
+                                                                  const SampleCounter& sample_counter) const;
+
+  /**
+   * Reads the callchain from the current buffer entry.
+   *
+   * @param entry Current position at the buffer.
+   * @return List of instruction pointers (the callchain).
+   */
+  [[nodiscard]] static std::optional<std::vector<std::uintptr_t>> read_callchain(UserLevelBufferEntry& entry);
+
+  /**
+   * Reads the branch stack from the current buffer entry.
+   *
+   * @param entry Current position at the buffer.
+   * @return Branch stack.
+   */
+  [[nodiscard]] static std::optional<std::vector<Branch>> read_branch_stack(UserLevelBufferEntry& entry);
+
+  /**
    * Translates the current entry from the user-level buffer into a lost sample.
    *
    * @param entry Entry of the user-level buffer.
-   *
    * @return Sample containing the loss.
    */
-  [[nodiscard]] perf::Sample read_loss_event(UserLevelBufferEntry entry) const;
+  [[nodiscard]] perf::Sample read_loss_event(UserLevelBufferEntry entry) const noexcept;
 
   /**
    * Translates the current entry from the user-level buffer into a context switch sample.
    *
    * @param entry Entry of the user-level buffer.
-   *
    * @return Sample containing the context switch.
    */
-  [[nodiscard]] perf::Sample read_context_switch_event(UserLevelBufferEntry entry) const;
+  [[nodiscard]] perf::Sample read_context_switch_event(UserLevelBufferEntry entry) const noexcept;
 
   /**
    * Translates the current entry from the user-level buffer into a cgroup sample.
    *
    * @param entry Entry of the user-level buffer.
-   *
    * @return Sample containing the cgroup.
    */
   [[nodiscard]] static perf::Sample read_cgroup_event(UserLevelBufferEntry entry);
 
   /**
-   * Translates the current entry from the user-level buffer into a throttle or unthrottle sample.
+   * Translates the current entry from the user-level buffer into a throttle or un-throttle sample.
    *
    * @param entry Entry of the user-level buffer.
-   *
    * @return Sample containing the throttle.
    */
-  [[nodiscard]] perf::Sample read_throttle_event(UserLevelBufferEntry entry) const;
+  [[nodiscard]] perf::Sample read_throttle_event(UserLevelBufferEntry entry) const noexcept;
 
   const CounterDefinition& _counter_definitions;
 
@@ -748,12 +722,11 @@ private:
   /// This enables the user to open the sampler specifically – or open the
   /// sampler when starting.
   bool _is_opened{ false };
-
-  /// Will be assigned to errorno.
-  /// Attention: Will be deprecated when switching to exceptions only.
-  std::int64_t _last_error{ 0 };
 };
 
+/**
+ * The MultiSamplerBase is the foundation for samplers that have multiple sub-samplers, for example, MultiThreadSampler.
+ */
 class MultiSamplerBase
 {
 public:
@@ -777,7 +750,7 @@ public:
   /**
    * Closes the sampler, including mapped buffer.
    */
-  void close()
+  void close() noexcept
   {
     for (auto& sampler : samplers()) {
       sampler.close();
@@ -812,10 +785,11 @@ protected:
    * Creates a single result from multiple samplers.
    *
    * @param sampler List of samplers.
-   * @param sort_by_time Flag to sort the result by timestamp attribute (if sampled).
+   * @param is_sort_by_time Flag to sort the result by timestamp attribute (if sampled).
+   *
    * @return Single list of results from all incoming samplers.
    */
-  [[nodiscard]] static std::vector<Sample> result(const std::vector<Sampler>& sampler, bool sort_by_time);
+  [[nodiscard]] static std::vector<Sample> result(const std::vector<Sampler>& sampler, bool is_sort_by_time);
 
   /**
    * Initializes the given trigger(s) for the given list of samplers.
@@ -875,36 +849,6 @@ protected:
 class MultiThreadSampler final : public MultiSamplerBase
 {
 public:
-  [[deprecated(
-    "Creating samplers with counters and sampling type will be replaced by MultiThreadSampler::trigger() "
-    "and MultiThreadSampler::values() interfaces.")]] MultiThreadSampler(const CounterDefinition& counter_list,
-                                                                         const std::string& counter_name,
-                                                                         const std::uint64_t type,
-                                                                         const std::uint16_t num_threads,
-                                                                         SampleConfig config = {})
-    : MultiThreadSampler(counter_list, std::string{ counter_name }, type, num_threads, config)
-  {
-  }
-
-  [[deprecated(
-    "Creating samplers with counters and sampling type will be replaced by MultiThreadSampler::trigger() "
-    "and MultiThreadSampler::values() interfaces.")]] MultiThreadSampler(const CounterDefinition& counter_list,
-                                                                         std::string&& counter_name,
-                                                                         const std::uint64_t type,
-                                                                         const std::uint16_t num_threads,
-                                                                         SampleConfig config = {})
-    : MultiThreadSampler(counter_list, std::vector<std::string>{ std::move(counter_name) }, type, num_threads, config)
-  {
-  }
-
-  [[deprecated(
-    "Creating samplers with counters and sampling type will be replaced by MultiThreadSampler::trigger() "
-    "and MultiThreadSampler::values() interfaces.")]] MultiThreadSampler(const CounterDefinition& counter_list,
-                                                                         std::vector<std::string>&& counter_names,
-                                                                         std::uint64_t type,
-                                                                         std::uint16_t num_threads,
-                                                                         SampleConfig config = {});
-
   explicit MultiThreadSampler(const CounterDefinition& counter_list,
                               std::uint16_t num_threads,
                               SampleConfig config = {});
@@ -1081,40 +1025,6 @@ private:
 class MultiCoreSampler final : public MultiSamplerBase
 {
 public:
-  [[deprecated(
-    "Creating samplers with counters and sampling type will be replaced by MultiCoreSampler::trigger() and "
-    "MultiCoreSampler::values() interfaces from v.0.9.0.")]] MultiCoreSampler(const CounterDefinition& counter_list,
-                                                                              const std::string& counter_name,
-                                                                              const std::uint64_t type,
-                                                                              std::vector<std::uint16_t>&& core_ids,
-                                                                              SampleConfig config = {})
-    : MultiCoreSampler(counter_list, std::string{ counter_name }, type, std::move(core_ids), config)
-  {
-  }
-
-  [[deprecated(
-    "Creating samplers with counters and sampling type will be replaced by MultiCoreSampler::trigger() and "
-    "MultiCoreSampler::values() interfaces from v.0.9.0.")]] MultiCoreSampler(const CounterDefinition& counter_list,
-                                                                              std::string&& counter_name,
-                                                                              const std::uint64_t type,
-                                                                              std::vector<std::uint16_t>&& core_ids,
-                                                                              SampleConfig config = {})
-    : MultiCoreSampler(counter_list,
-                       std::vector<std::string>{ std::move(counter_name) },
-                       type,
-                       std::move(core_ids),
-                       config)
-  {
-  }
-
-  [[deprecated(
-    "Creating samplers with counters and sampling type will be replaced by MultiCoreSampler::trigger() and "
-    "MultiCoreSampler::values() interfaces from v.0.9.0.")]] MultiCoreSampler(const CounterDefinition& counter_list,
-                                                                              std::vector<std::string>&& counter_names,
-                                                                              std::uint64_t type,
-                                                                              std::vector<std::uint16_t>&& core_ids,
-                                                                              SampleConfig config = {});
-
   explicit MultiCoreSampler(const CounterDefinition& counter_list,
                             std::vector<std::uint16_t>&& core_ids,
                             SampleConfig config = {});
@@ -1282,6 +1192,9 @@ private:
 class SampleTimestampComparator
 {
 public:
-  bool operator()(const Sample& left, const Sample& right) const { return left.time().value() < right.time().value(); }
+  bool operator()(const Sample& left, const Sample& right) const noexcept
+  {
+    return left.time().value() < right.time().value();
+  }
 };
 }

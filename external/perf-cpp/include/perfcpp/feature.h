@@ -2,6 +2,17 @@
 
 #include <linux/version.h>
 
+/// The features of the perf subsystem have evolved over time (more precisely over Linux Kernel generations).
+/// In this file, we define some preprocessor variables to keep up with older Linux Kernel versions without yielding
+/// errors at compile- and runtime.
+/// The documentation for the perf_event_open system call (https://man7.org/linux/man-pages/man2/perf_event_open.2.html)
+/// has a great overview of features added in various versions.
+/// For the moment, we support Linux 4.0 and newer.
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
+#define PERFCPP_NO_ERROR_EBUSY
+#endif
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 2, 0)
 #define PERFCPP_NO_SAMPLE_BRANCH_IND_JUMP
 #define PERFCPP_NO_RECORD_LOST_SAMPLES
@@ -71,4 +82,12 @@
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
 #define PERFCPP_NO_MEM_LVLNUM_IO
 #define PERFCPP_NO_MEM_LVLNUM_CXL
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 6, 0)
+#define PERFCPP_NO_MEM_LVLNUM_UNC
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 11, 0)
+#define PERFCPP_NO_MEM_LVLNUM_L2_MHB
 #endif

@@ -1,31 +1,32 @@
 #include <fstream>
+#include <linux/perf_event.h>
 #include <perfcpp/counter_definition.h>
+#include <perfcpp/exception.h>
 #include <perfcpp/feature.h>
 #include <perfcpp/hardware_info.h>
 #include <sstream>
 #include <string_view>
 #include <utility>
 
-perf::CounterDefinition::CounterDefinition(const std::string& config_file)
-{
-  this->initialize_generalized_counters();
-  this->initialize_amd_ibs_counters();
-  this->initialize_intel_pebs_counters();
-
-  this->read_counter_configuration(config_file);
-}
-
 perf::CounterDefinition::CounterDefinition()
 {
   this->initialize_generalized_counters();
   this->initialize_amd_ibs_counters();
   this->initialize_intel_pebs_counters();
+  this->initialize_time_events();
+}
+
+perf::CounterDefinition::CounterDefinition(const std::string& config_file)
+  : CounterDefinition()
+{
+  this->read_counter_configuration(config_file);
 }
 
 std::optional<std::pair<std::string_view, perf::CounterConfig>>
 perf::CounterDefinition::counter(const std::string& name) const noexcept
 {
-  if (auto iterator = this->_counter_configs.find(name); iterator != this->_counter_configs.end()) {
+  if (auto iterator = this->_hardware_counter_configurations.find(name);
+      iterator != this->_hardware_counter_configurations.end()) {
     return std::make_optional(std::make_pair(std::string_view(iterator->first), iterator->second));
   }
 
@@ -35,7 +36,17 @@ perf::CounterDefinition::counter(const std::string& name) const noexcept
 std::optional<std::pair<std::string_view, perf::Metric&>>
 perf::CounterDefinition::metric(const std::string& name) const noexcept
 {
-  if (auto iterator = _metrics.find(name); iterator != _metrics.end()) {
+  if (auto iterator = this->_metrics.find(name); iterator != this->_metrics.end()) {
+    return std::make_optional(std::make_pair(std::string_view(iterator->first), std::ref(*iterator->second)));
+  }
+
+  return std::nullopt;
+}
+
+std::optional<std::pair<std::string_view, perf::TimeEvent&>>
+perf::CounterDefinition::time_event(const std::string& name) const noexcept
+{
+  if (auto iterator = this->_time_events.find(name); iterator != this->_time_events.end()) {
     return std::make_optional(std::make_pair(std::string_view(iterator->first), std::ref(*iterator->second)));
   }
 
@@ -45,7 +56,7 @@ perf::CounterDefinition::metric(const std::string& name) const noexcept
 void
 perf::CounterDefinition::initialize_generalized_counters()
 {
-  this->_counter_configs.reserve(128U);
+  this->_hardware_counter_configurations.reserve(128U);
   this->_metrics.reserve(64U);
 
   this->add("instructions", PERF_TYPE_HARDWARE, PERF_COUNT_HW_INSTRUCTIONS);
@@ -117,34 +128,59 @@ perf::CounterDefinition::initialize_generalized_counters()
 
   /// Pre-defined metrics.
   this->add(std::make_unique<CyclesPerInstruction>());
+  this->add(std::make_unique<Gigahertz>());
+  this->add(std::make_unique<InstructionsPerCycle>());
   this->add(std::make_unique<CacheHitRatio>());
+  this->add(std::make_unique<CacheMissRatio>());
   this->add(std::make_unique<DTLBMissRatio>());
   this->add(std::make_unique<ITLBMissRatio>());
   this->add(std::make_unique<L1DataMissRatio>());
+  this->add(std::make_unique<BranchMissRatio>());
 }
 
 void
 perf::CounterDefinition::initialize_amd_ibs_counters()
 {
   /// IBS OP.
-  const auto ibs_op_type = HardwareInfo::amd_ibs_op_type();
-  if (ibs_op_type.has_value()) {
+  if (const auto ibs_op_type = HardwareInfo::amd_ibs_op_type(); ibs_op_type.has_value()) {
     this->add("ibs_op", CounterConfig{ ibs_op_type.value(), 0U });
-    this->add("ibs_op_uops", CounterConfig{ ibs_op_type.value(), 1ULL << 19U });
+
+    /// Read the bit to sample for micro ops from the perf format.
+    auto uops_bit = HardwareInfo::amd_ibs_op_bit();
+    if (uops_bit.has_value()) {
+      this->add("ibs_op_uops", CounterConfig{ ibs_op_type.value(), 1ULL << uops_bit.value() });
+    }
 
     if (HardwareInfo::is_ibs_l3_filter_supported()) {
-      this->add("ibs_op_l3missonly", CounterConfig{ ibs_op_type.value(), 1ULL << 16U });
-      this->add("ibs_op_uops_l3missonly", CounterConfig{ ibs_op_type.value(), (1ULL << 19U) | (1ULL << 16U) });
+
+      /// Read the bit to filter for l3 misses from the perf format.
+      if (const auto l3missonly_bit = HardwareInfo::amd_ibs_op_l3miss_bit(); l3missonly_bit.has_value()) {
+        this->add("ibs_op_l3missonly", CounterConfig{ ibs_op_type.value(), 1ULL << l3missonly_bit.value() });
+
+        if (uops_bit.has_value()) {
+          this->add(
+            "ibs_op_uops_l3missonly",
+            CounterConfig{ ibs_op_type.value(), (1ULL << uops_bit.value()) | (1ULL << l3missonly_bit.value()) });
+        }
+      }
     }
   }
 
   /// IBS Fetch.
-  const auto ibs_fetch_type = HardwareInfo::amd_ibs_fetch_type();
-  if (ibs_fetch_type.has_value()) {
-    this->add("ibs_fetch", CounterConfig{ ibs_fetch_type.value(), 1ULL << 57U });
+  if (const auto ibs_fetch_type = HardwareInfo::amd_ibs_fetch_type(); ibs_fetch_type.has_value()) {
 
-    if (HardwareInfo::is_ibs_l3_filter_supported()) {
-      this->add("ibs_fetch_l3missonly", CounterConfig{ ibs_fetch_type.value(), (1ULL << 57U) | (1ULL << 16U) });
+    /// Read the bit to sample for instruction fetches from the perf format.
+    if (const auto fetch_bit = HardwareInfo::amd_ibs_fetch_bit(); fetch_bit.has_value()) {
+      this->add("ibs_fetch", CounterConfig{ ibs_fetch_type.value(), 1ULL << fetch_bit.value() });
+
+      if (HardwareInfo::is_ibs_l3_filter_supported()) {
+        /// Read the bit to filter for l3 misses from the perf format.
+        if (const auto l3missonly_bit = HardwareInfo::amd_ibs_fetch_l3miss_bit(); l3missonly_bit.has_value()) {
+          this->add(
+            "ibs_fetch_l3missonly",
+            CounterConfig{ ibs_fetch_type.value(), (1ULL << fetch_bit.value()) | (1ULL << l3missonly_bit.value()) });
+        }
+      }
     }
   }
 }
@@ -175,6 +211,19 @@ perf::CounterDefinition::initialize_intel_pebs_counters()
 }
 
 void
+perf::CounterDefinition::initialize_time_events()
+{
+  this->add("seconds", std::make_unique<SecondsTimeEvent>());
+  this->add("s", std::make_unique<SecondsTimeEvent>());
+  this->add("milliseconds", std::make_unique<MillisecondsTimeEvent>());
+  this->add("ms", std::make_unique<MillisecondsTimeEvent>());
+  this->add("microseconds", std::make_unique<MicrosecondsTimeEvent>());
+  this->add("us", std::make_unique<MicrosecondsTimeEvent>());
+  this->add("nanoseconds", std::make_unique<NanosecondsTimeEvent>());
+  this->add("ns", std::make_unique<NanosecondsTimeEvent>());
+}
+
+void
 perf::CounterDefinition::read_counter_configuration(const std::string& csv_filename)
 {
   /// Read all counter values from the config file in the format
@@ -182,35 +231,53 @@ perf::CounterDefinition::read_counter_configuration(const std::string& csv_filen
   /// where <config> and <extended config> are either integer or hex values.
 
   auto input_file = std::ifstream{ csv_filename };
-  if (input_file.is_open()) {
-    std::string line;
-    while (std::getline(input_file, line)) {
-      auto line_stream = std::istringstream{ line };
+  if (!input_file.is_open()) {
+    throw CannotOpenFileError{ csv_filename };
+  }
 
-      std::string name;
-      std::uint64_t config;
-      auto extended_config = 0ULL;
-      auto type = std::uint32_t{ PERF_TYPE_RAW };
-      if (std::getline(line_stream, name, ',')) {
-        std::string config_str;
-        if (std::getline(line_stream, config_str, ',')) {
+  std::string line;
+  while (std::getline(input_file, line)) {
+    auto line_stream = std::istringstream{ line };
+
+    std::string name;
+    std::uint64_t config;
+    auto extended_config = 0ULL;
+    auto type = std::uint32_t{ PERF_TYPE_RAW };
+
+    /// Read name.
+    if (std::getline(line_stream, name, ','); !name.empty()) {
+
+      /// Read config-field and translate into integer.
+      std::string config_str;
+      if (std::getline(line_stream, config_str, ',')) {
+        if (config_str.rfind("0x", 0ULL) == 0ULL) {
+          config = std::stoull(config_str.substr(2ULL), nullptr, 16);
+        } else {
           config = std::stoull(config_str, nullptr, 0);
+        }
 
-          std::string extended_config_str;
-          if (std::getline(line_stream, extended_config_str, ',')) {
+        /// Read extended config-field and translate into integer.
+        std::string extended_config_str;
+        if (std::getline(line_stream, extended_config_str, ',')) {
+          if (extended_config_str.rfind("0x", 0ULL) == 0ULL) {
+            extended_config = std::stoull(extended_config_str.substr(2ULL), nullptr, 16);
+          } else {
             extended_config = std::stoull(extended_config_str, nullptr, 0);
+          }
 
-            std::string type_str;
-            if (std::getline(line_stream, type_str, ',')) {
-              type = std::stoul(type_str, nullptr, 0);
+          /// Read type-field and translate into integer.
+          std::string type_str;
+          if (std::getline(line_stream, type_str, ',')) {
+            if (type_str.rfind("0x", 0ULL) == 0ULL) {
+              type = std::uint32_t(std::stoul(type_str.substr(2ULL), nullptr, 16));
+            } else {
+              type = std::uint32_t(std::stoul(extended_config_str, nullptr, 0));
             }
           }
-
-          if (!name.empty()) {
-            this->_counter_configs.insert(
-              std::make_pair(std::move(name), CounterConfig{ type, config, extended_config }));
-          }
         }
+
+        /// Add counter configuration.
+        this->add(std::move(name), CounterConfig{ type, config, extended_config });
       }
     }
   }

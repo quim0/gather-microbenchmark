@@ -1,9 +1,11 @@
 #pragma once
 
+#include "config.h"
 #include <array>
 #include <cstdint>
 #include <linux/perf_event.h>
 #include <optional>
+#include <perfcpp/precision.h>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -25,33 +27,23 @@ public:
   ~CounterConfig() noexcept = default;
 
   void precise_ip(const std::uint8_t precise_ip) noexcept { _precise_ip = precise_ip; }
-  void period(const std::uint64_t period) noexcept
+  void period_or_frequency(const PeriodOrFrequency period_or_frequency) noexcept
   {
-    _is_frequency = false;
-    _period_or_frequency = period;
-  }
-  void frequency(const std::uint64_t frequency) noexcept
-  {
-    _is_frequency = true;
-    _period_or_frequency = frequency;
+    _period_or_frequency = period_or_frequency;
   }
 
   [[nodiscard]] std::uint32_t type() const noexcept { return _type; }
   [[nodiscard]] std::uint64_t event_id() const noexcept { return _event_id; }
   [[nodiscard]] std::array<std::uint64_t, 2U> event_id_extension() const noexcept { return _event_id_extension; }
-  [[nodiscard]] std::uint8_t precise_ip() const noexcept { return _precise_ip; }
-  [[nodiscard]] bool is_frequency() const noexcept { return _is_frequency; }
-  [[nodiscard]] std::uint64_t period_or_frequency() const noexcept { return _period_or_frequency; }
-
-  [[nodiscard]] bool is_auxiliary() const noexcept { return _event_id == 0x8203; }
+  [[nodiscard]] std::optional<std::uint8_t> precise_ip() const noexcept { return _precise_ip; }
+  [[nodiscard]] std::optional<PeriodOrFrequency> period_or_frequency() const noexcept { return _period_or_frequency; }
 
 private:
   std::uint32_t _type;
   std::uint64_t _event_id;
   std::array<std::uint64_t, 2U> _event_id_extension;
-  std::uint8_t _precise_ip{ 0U };
-  bool _is_frequency{ false };
-  std::uint64_t _period_or_frequency{ 4000ULL };
+  std::optional<std::uint8_t> _precise_ip{ std::nullopt };
+  std::optional<PeriodOrFrequency> _period_or_frequency{ std::nullopt };
 };
 
 class CounterResult
@@ -119,7 +111,7 @@ public:
   {
   }
 
-  ~Counter() noexcept = default;
+  ~Counter();
 
   /**
    * @return ID of the counter.
@@ -132,58 +124,40 @@ public:
   [[nodiscard]] std::int64_t file_descriptor() const noexcept { return _file_descriptor; }
 
   /**
-   * @return True, if the counter is an auxiliary counter, which is needed for (memory) sampling on recent Intel
-   * architectures.
-   */
-  [[nodiscard]] bool is_auxiliary() const noexcept { return _config.is_auxiliary(); }
-
-  /**
    * Opens the counter using the perf subsystem via the perf_event_open system call.
    * The counter will be configured with the provided parameters.
    * After successfully open the counter, the counter's file descriptor will be set.
    * If the counter cannot be opened, it will throw an exception including the error number.
    *
-   * @param is_print_debug If true, the counter's parameters will be print to the console, which is useful for
-   * debugging.
+   * @param config Configuration.
    * @param is_group_leader True, if this counter is the group leader.
    * @param is_secret_leader True, if this counter is not the group leader but the group leader is an auxiliary counter.
    * @param group_leader_file_descriptor File descriptor of the group leader; may be -1 (or any other –unused– value),
    * if this is the group leader.
-   * @param cpu_id ID of the CPU to monitor.
-   * @param process_id ID of the process to monitor.
-   * @param is_inherit True, if child-threads should be monitored.
-   * @param is_include_kernel True, if kernel-activity should be monitored.
-   * @param is_include_user True, if user-activity should be monitored.
-   * @param is_include_hypervisor True, if hypervisor-activity should be monitored.
-   * @param is_include_idle True, if idle-activity should be monitored.
-   * @param is_include_guest True, if guest-activity should be monitored.
    * @param is_read_format True, if counters should be read.
+   * @param buffer_pages Number of pages allocated for user-level buffer, std::nullopt if counter should not allocated
+   * any pages.
    * @param sample_type Mask of sampled values, std::nullopt of sampling is disabled.
    * @param branch_type Mask of sampled branch types, std::nullopt of sampling is disabled.
    * @param user_registers Mask of sampled user registers, std::nullopt of sampling is disabled.
    * @param kernel_registers Mask of sampled kernel registers, std::nullopt of sampling is disabled.
-   * @param max_callstack Maximal size of sampled callstacks, std::nullopt of sampling is disabled.
+   * @param max_user_stack_size Maximal size of sampled user stack, std::nullopt of sampling is disabled.
+   * @param max_callstack_size Maximal size of sampled callstacks, std::nullopt of sampling is disabled.
    * @param is_include_context_switch True, if context switches should be sampled, ignored if sampling is disabled.
    * @param is_include_cgroup True, if cgroups should be sampled, ignored if sampling is disabled.
    */
-  void open(bool is_print_debug,
+  void open(const perf::Config& config,
             bool is_group_leader,
             bool is_secret_leader,
             std::int64_t group_leader_file_descriptor,
-            std::optional<std::uint16_t> cpu_id,
-            pid_t process_id,
-            bool is_inherit,
-            bool is_include_kernel,
-            bool is_include_user,
-            bool is_include_hypervisor,
-            bool is_include_idle,
-            bool is_include_guest,
             bool is_read_format,
+            std::optional<std::uint64_t> buffer_pages,
             std::optional<std::uint64_t> sample_type,
             std::optional<std::uint64_t> branch_type,
             std::optional<std::uint64_t> user_registers,
             std::optional<std::uint64_t> kernel_registers,
-            std::optional<std::uint16_t> max_callstack,
+            std::optional<std::uint32_t> max_user_stack_size,
+            std::optional<std::uint16_t> max_callstack_size,
             bool is_include_context_switch,
             bool is_include_cgroup);
 
@@ -193,6 +167,29 @@ public:
   void close();
 
   /**
+   * Enables the counter.
+   */
+  void enable() const;
+
+  /**
+   * Disables the counter.
+   */
+  void disable() const;
+
+  /**
+   * Reads the counter "live" without stopping via the "rdpmc" instruction.
+   * Note that this is only possible on x86 architectures.
+   *
+   * @return The current value of the counter.
+   */
+  [[nodiscard]] std::uint64_t read_live() const noexcept;
+
+  /**
+   * @return First page of the user-level buffer.
+   */
+  [[nodiscard]] perf_event_mmap_page* user_level_buffer() const noexcept { return _user_level_buffer; }
+
+  /**
    * @return A string representing all configurations of this counter.
    */
   [[nodiscard]] std::string to_string(std::optional<bool> is_group_leader = std::nullopt,
@@ -200,11 +197,29 @@ public:
                                       std::optional<pid_t> process_id = std::nullopt,
                                       std::optional<std::int32_t> cpu_id = std::nullopt) const;
 
+  [[nodiscard]] bool operator==(const CounterConfig config) const noexcept
+  {
+    return _config.type() == config.type() && _config.event_id() == config.event_id();
+  }
+
 private:
+  /// The config of an event.
   CounterConfig _config;
+
+  /// The event description for the perf subsystem, will be configured when opening.
   perf_event_attr _event_attribute{};
+
+  /// Id of an event, will be set by ::ioctl and is needed to match counter values from the perf reading format.
   std::uint64_t _id{ 0U };
+
+  /// The file descriptor as returned by the perf subsystem when opening the counter.
   std::int64_t _file_descriptor{ -1 };
+
+  /// Some counter (e.g., triggers for sampling and those read with the rdpmc instruction) use mmap-ed buffers.
+  perf_event_mmap_page* _user_level_buffer{ nullptr };
+
+  /// Number of pages allocated for the user level buffer (needed for closing the buffer).
+  std::optional<std::uint64_t> _user_level_buffer_pages{ std::nullopt };
 
   /**
    * Do the "final" perf_event_open system call with the provided parameters.
@@ -221,45 +236,42 @@ private:
                                std::int64_t group_leader_file_descriptor);
 
   /**
+   * Decides whether adjusting (i.e., decrementing) the precise_ip configuration could help to open a hardware
+   * performance counter if an previous attempt failed. This is only true for sampling, if the current precise_ip is too
+   * high and the error code indicates to do so (e.g., reporting an invalid argument).
+   *
+   * @param current_precise_ip The current value of the precise_ip configuration.
+   * @param sample_type Sample type; std::nullopt if opened for counting only.
+   * @param error_code The error code when failing.
+   * @return True, when the counter should try to open again.
+   */
+  [[nodiscard]] static bool is_adjust_precise_ip(std::uint8_t current_precise_ip,
+                                                 std::optional<std::uint64_t> sample_type,
+                                                 std::int64_t error_code) noexcept;
+
+  /**
+   * Creates an exception message based on the errno set when accessing the perf subsystem to open an event.
+   *
+   * @param error_code Error code raised when calling perf_event_open.
+   * @return Error message that can be thrown to inform the user.
+   */
+  [[nodiscard]] static std::string error_message_from_errno(std::int64_t error_code);
+
+  /**
    * Prints a name of a type (e.g., sample, branch, ...) to the stream if the type is set in the mask.
    *
    * @param stream Stream to print the name of the type on.
    * @param mask Given mask to check if the type is set.
    * @param type Type to test in the mask.
    * @param name Name to print if the type is set.
-   * @param is_first Flag if this is the first printed name. If false, a separator is printed in front of the name.
+   * @param is_need_print_delimiter Flag if this is the first printed name. If false, a delimiter is printed in front of
+   * the name.
    * @return True, if this was the first printed type.
    */
   static bool print_type_to_stream(std::stringstream& stream,
                                    std::uint64_t mask,
                                    std::uint64_t type,
                                    std::string&& name,
-                                   bool is_first);
-};
-
-/**
- * Read format for counter values.
- */
-template<std::size_t S>
-struct CounterReadFormat
-{
-  /// Value and ID delivered by perf.
-  struct value
-  {
-    std::uint64_t value;
-    std::uint64_t id;
-  };
-
-  /// Number of counters in the following array.
-  std::uint64_t count_members;
-
-  /// Time the event was enabled.
-  std::uint64_t time_enabled;
-
-  /// Time the event was running.
-  std::uint64_t time_running;
-
-  /// Values of the members.
-  std::array<value, S> values;
+                                   bool is_need_print_delimiter);
 };
 }

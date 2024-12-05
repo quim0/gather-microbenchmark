@@ -77,16 +77,18 @@ void benchmark_run_32bits(bench_params_t params)
     #ifdef __ARM_FEATURE_SVE
         params.simd_type = (params.simd_type == SCALAR) ? SCALAR : REG_512BIT;
     #endif
+    auto config = perf::Config{};
+    config.max_groups(6U);             /// Only two hardware counters
+    config.max_counters_per_group(1U); /// Only one event per counter.
+
     auto counter_definitions = perf::CounterDefinition{};
-    auto event_counter       = perf::EventCounter{counter_definitions};
+    auto event_counter       = perf::EventCounter{counter_definitions, config};
     if (!event_counter.add({ "instructions",
                         "cycles",
-                        "branches",
-                        "cycles-per-instruction",
                         "cache-misses",
                         "cache-references",
                         "L1-dcache-load-misses",
-                        "L1-dcache-loads"})) {
+                        "L1-dcache-loads"}, perf::EventCounter::Schedule::Separate)) {
         std::cerr << "Could not add performance counters." << std::endl;
     }
 

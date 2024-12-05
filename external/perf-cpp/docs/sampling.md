@@ -12,11 +12,11 @@ For specific information about sampling in parallel settings (i.e., sampling mul
 ---
 ## Table of Contents
 - [Interface](#interface)
-  - [1) Define What is Recorded and When](#1-define-what-is-recorded-and-when)
-  - [2) Open the Sampler *(optional)*](#2-open-the-sampler-optional-)
-  - [3) Wrap `start()` and `stop()` around the Processing Code](#3-wrap-start-and-stop-around-the-processing-code)
-  - [4) Access the Recorded Samples](#4-access-the-recorded-samples)
-  - [5) Closing the Sampler](#5-closing-the-sampler-optional)
+  - [Setting up *what* to record and *when*](#setting-up-what-to-record-and-when)
+  - [Initializing the Sampler *(optional)*](#initializing-the-sampler-optional)
+  - [Managing Sampler Lifecycle](#managing-sampler-lifecycle)
+  - [Retrieving Samples](#retrieving-samples)
+  - [Closing the Sampler (*optional*)](#closing-the-sampler-optional)
 - [Trigger](#trigger)
 - [Precision](#precision)
 - [Period / Frequency](#period--frequency)
@@ -27,6 +27,7 @@ For specific information about sampling in parallel settings (i.e., sampling mul
   - [Identifier](#identifier)
   - [Instruction Pointer](#instruction-pointer)
   - [Callchain](#callchain)
+  - [User Stack](#user-stack)
   - [Registers in user-level](#registers-in-user-level)
   - [Registers in kernel-level](#registers-in-kernel-level)
   - [ID of the recording Thread](#id-of-the-recording-thread)
@@ -49,39 +50,32 @@ For specific information about sampling in parallel settings (i.e., sampling mul
 - [Specific Notes for different CPU Vendors](#specific-notes-for-different-cpu-vendors)
   - [Intel (PEBS)](#intel-pebs)
   - [AMD (Instruction Based Sampling)](#amd-instruction-based-sampling)
-- [Debugging Counter Settings](#debugging-counter-settings)
+- [Troubleshooting Counter Configurations](#troubleshooting-counter-configurations)
 ---
 
 ## Interface
-### 1) Define What is Recorded and When
-The sampler utilizes a [trigger](#trigger) to determine **when** a sample is captured, along with a [set of values](#what-can-be-recorded-and-how-to-access-the-data) that specify **what** data can be recorded.
+### Setting up *what* to record and *when*
+For sampling, the hardware records a set of data ([see more details](#what-can-be-recorded-and-how-to-access-the-data)) upon reaching the threshold of a specific trigger event ([see more details](#trigger)).
+In the following example, we record a timestamp and the current instruction pointer every 4000th cycle:
 
 ```cpp
 #include <perfcpp/sampler.h>
-/// The perf::CounterDefinition object holds all counter names and must be alive when counters are accessed.
 auto counter_definitions = perf::CounterDefinition{};
 
-/// Define when the data is recorded.
-/// This can be every Nth event (e.g., every 1000th cycle):
 auto sample_config = perf::SampleConfig{};
-sample_config.period(1000U);
-/// or with a frequency of N (e.g., every ms with a clock-frequency of 2GHz):
-sample_config.frequency(2000000U);
-/// Note that you can use only frequency XOR period
+sample_config.period(4000U);
 
-/// Create the sampler.
 auto sampler = perf::Sampler{ counter_definitions, sample_config };
-
-/// Define the trigger (cycles in this example)...
 sampler.trigger("cycles");
-
-// and what to record (time and instruction pointer in this example)
 sampler.values().time(true).instruction_pointer(true);
 ```
 
-### 2) Open the Sampler *(optional)* 
-The sampler is opened using `sampler.start()`, if it is not already opened.
-This action configures all necessary counters and buffers, a process that may require some time. 
+**Note**: The `perf::CounterDefinition` instance is used to store event configurations (e.g., names) and passed as a reference.
+Consequently, the instance needs to be alive while using the `Sampler` ([as described here](counters.md)).
+
+## Initializing the Sampler *(optional)*
+The sampler is initialized using `sampler.start()`, if it is not already done.
+This action configures all necessary hardware counters and buffers, a process that may require some time. 
 For those requiring **precise timing measurements** and wishing to omit the time spent setting up counters, the `sampler.open()` method can be invoked separately.
 
 ```cpp
@@ -92,7 +86,9 @@ try {
 }
 ```
 
-### 3) Wrap `start()` and `stop()` around the Processing Code
+### Managing Sampler Lifecycle
+Surround your computational code with `start()` and `stop()` methods to sample hardware events:
+
 ```cpp
 try {
     sampler.start();
@@ -105,7 +101,7 @@ try {
 sampler.stop();
 ```
 
-### 4) Access the Recorded Samples
+### Retrieving Samples
 The output is a series of `perf::Sample` instances, each potentially including extensive data. 
 Given the capability to select specific data elements for sampling, each data point is encapsulated within an `std::optional` to manage its potential absence.
 
@@ -133,7 +129,7 @@ The output may be something like this:
     Time = 124853765058918 | IP = 0x5794c991990c
     Time = 124853765256328 | IP = 0x5794c991990c
 
-### 5) Closing the Sampler (*optional*)
+### Closing the Sampler (*optional*)
 Closing the sampler releases and un-maps all buffers and deactivates all counters. 
 Additionally, the sampler automatically closes upon destruction. 
 However, closing the sampler explicitly enables it to be reopened at a future time.
@@ -159,6 +155,14 @@ To define multiple triggers, use a vector of trigger names:
 sampler.trigger(std::vector<std::string>{"cycles", "instructions"});
 ```
 In this scenario, exceeding either the cycles or instructions counter will prompt the CPU to capture a sample.
+
+### Notes for specific CPUs
+When configuring event-based sampling, it's important to understand that different CPU manufacturers support different sets of events that can be used as triggers.
+
+Intel CPUs are generally flexible and allow almost every event as a trigger.
+On AMD systems, the range of events that can trigger samples is more restricted: Typically, only the `cycles` event and specific IBS events such as `ibs_fetch` and `ibs_op` are supported.
+
+For more detailed information on configuring event-based sampling for different CPU types and specific notes on memory sampling, refer to the section: [Specific Notes for different CPU Vendors](#specific-notes-for-different-cpu-vendors).
 
 ## Precision
 Due to deeply pipelined processors, samples might not be precise, i.e., a sample might contain an instruction pointer or memory address that did not generate the overflow (&rarr; see [a blogpost on easyperf.net](https://easyperf.net/blog/2019/04/03/Precise-timing-of-machine-code-with-Linux-perf) and [the perf documentation](https://man7.org/linux/man-pages/man2/perf_event_open.2.html)).
@@ -231,7 +235,7 @@ sampler.values()
 ```
 
 This specific configuration captures both the *timestamp* and *instruction pointer* within the sample record. 
-Upon completing the sampling and retrieving the results, the recorded fields can be accessed as follows:
+Upon completing the sampling and [retrieving the sampling results](#retrieving-samples), the recorded fields can be accessed as follows:
 
 ```cpp
 for (const auto& sample_record : sampler.results()) {
@@ -239,6 +243,8 @@ for (const auto& sample_record : sampler.results()) {
     const auto instruction_pointer = sample_record.instruction_pointer().value();
 }
 ```
+
+**Note**: Most fields of the `sample_record` are *optional* – recording these fields must be activated via `sampler.values()`.
 
 ### Time
 The timestamp of capturing the sample.
@@ -278,7 +284,13 @@ Additionally, you can determine if the captured instruction pointer was exact by
 Callchain as a list of instruction pointers.
 
 * Request by `sampler.values().callchain(true);` or `sampler.values().callchain(M);` where `M` is a `std::uint16_t` defining the maximum call stack size.
-* Read from the results by `sample_record.callchain().value();`, which returns a `std::vector<std::uintptr_t>` of instruction pointers.
+* Read from the results by `sample_record.callchain().value();`, which returns an `std::vector<std::uintptr_t>` of instruction pointers.
+
+### User Stack
+The user-level stack as a list of chars.
+
+* Request by `sampler.values().user_stack(M);` where `M` is a `std::uint32_t` defining the maximum size of the user stack.
+* Read from the results by `sample_record.user_stack().value();`, which returns an `std::vector<char>` of data.
 
 ### Registers in user-level
 Values of registers within the user-level.
@@ -286,7 +298,6 @@ Values of registers within the user-level.
 * Request by `sampler.values().user_registers( { perf::Registers::x86::IP, perf::Registers::x86::DI, perf::Registers::x86::R10 });`
 * Read from the results by `sample_record.user_registers().value()[0];` (`0` for the first register, `perf::Registers::x86::IP` in this example)
 * The ABI can be queried using `sample_record.user_registers_abi()`.
-
 
 &rarr; [See code example](../examples/register_sampling.cpp)
 
@@ -319,7 +330,7 @@ Sampling the code page size requires a Linux Kernel version of `5.11` or higher.
 ### Performance Counter Values
 Record hardware performance counter values at the time of the record.
 
-* Request by `sampler.values().counter({"instructions", "cache-misses"});`
+* Request by `sampler.values().counter({"instructions", "cache-misses"});`. You can sample any [hardware event](counters.md) or [metric](metrics.md).
 * Read from the results by `sample_record.counter_result().value().get("cache-misses");`. This can be accessed in the same manner as when recording counters.
 
 &rarr; [See code example](../examples/counter_sampling.cpp)
@@ -356,7 +367,7 @@ Each `perf::Branch` instance has the following values:
 * A flag that indicates if the branch was mispredicted (`branch.is_mispredicted()`) (`0` if not supported by the hardware).
 * A flag that indicates if the branch was within a transaction (`branch.is_in_transaction()`).
 * A flag that indicates if the branch was a transaction abort (`branch.is_transaction_abort()`).
-* Cycles since the last branch (`branch.cycles()`) (`0` if not supported by the hardware).
+* Cycles since the last branch (`branch.cycles()`) (`0` if not supported by the hardware – since Linux `4.3`).
 
 &rarr; [See code example](../examples/branch_sampling.cpp)
 
@@ -398,58 +409,63 @@ Data source where the data was sampled (e.g., local mem, remote mem, L1d, L2, ..
 
 The `perf::DataSource` object can be queried for the following information:
 
-| Query                                               | Information                                                                            |
-|-----------------------------------------------------|----------------------------------------------------------------------------------------|
-| `sample_record.data_src().value().is_load()`            | `True`, if the access was a load operation.                                            |
-| `sample_record.data_src().value().is_store()`           | `True`, if the access was a store operation.                                           |
-| `sample_record.data_src().value().is_prefetch()`        | `True`, if the access was a prefetch operation.                                        |
-| `sample_record.data_src().value().is_exec()`            | `True`, if the access was an execute operation.                                        |
-| `sample_record.data_src().value().is_mem_hit()`         | `True`, if the access was a hit.                                                       |
-| `sample_record.data_src().value().is_mem_miss()`        | `True`, if the access was a miss.                                                      |
-| `sample_record.data_src().value().is_mem_hit()`         | `True`, if the access was a hit.                                                       |
-| `sample_record.data_src().value().is_mem_l1()`          | `True`, if the data was found in the L1 cache.                                         |
-| `sample_record.data_src().value().is_mem_l2()`          | `True`, if the data was found in the L2 cache.                                         |
-| `sample_record.data_src().value().is_mem_l3()`          | `True`, if the data was found in the L3 cache.                                         |
-| `sample_record.data_src().value().is_mem_l4()`          | `True`, if the data was found in the L4 cache.                                         |
-| `sample_record.data_src().value().is_mem_lfb()`         | `True`, if the data was found in the Line Fill Buffer (or Miss Address Buffer on AMD). |
-| `sample_record.data_src().value().is_mem_ram()`         | `True`, if the data was found in any RAM.                                              |
-| `sample_record.data_src().value().is_mem_local_ram()`   | `True`, if the data was found in the local RAM.                                        |
-| `sample_record.data_src().value().is_mem_remote_ram()`  | `True`, if the data was found in any remote RAM.                                       |
-| `sample_record.data_src().value().is_mem_hops0()`       | `True`, if the data was found locally.                                                 |
-| `sample_record.data_src().value().is_mem_hops1()`       | `True`, if the data was found on the same node.                                        |
-| `sample_record.data_src().value().is_mem_hops2()`       | `True`, if the data was found on a remote socket.                                      |
-| `sample_record.data_src().value().is_mem_hops3()`       | `True`, if the data was found on a remote board.                                       |
-| `sample_record.data_src().value().is_mem_remote_ram1()` | `True`, if the data was found in a remote RAM on the same node.                        |
-| `sample_record.data_src().value().is_mem_remote_ram2()` | `True`, if the data was found in a remote RAM on a different socket.                   |
-| `sample_record.data_src().value().is_mem_remote_ram3()` | `True`, if the data was found in a remote RAM on a different board.                    |
-| `sample_record.data_src().value().is_mem_remote_cce1()` | `True`, if the data was found in cache with one hop distance.                          |
-| `sample_record.data_src().value().is_mem_remote_cce2()` | `True`, if the data was found in cache with two hops distance.                         |
-| `sample_record.data_src().value().is_pmem()`            | `True`, if the data was found on a PMEM device.                                        |
-| `sample_record.data_src().value().is_cxl()`             | `True`, if the data was transferred via Compute Express Link.                          |
-| `sample_record.data_src().value().is_tlb_hit()`         | `True`, if the access was a TLB hit.                                                   |
-| `sample_record.data_src().value().is_tlb_miss()`        | `True`, if the access was a TLB miss.                                                  |
-| `sample_record.data_src().value().is_tlb_l1()`          | `True`, if the access can be associated with the dTLB.                                 |
-| `sample_record.data_src().value().is_tlb_l2()`          | `True`, if the access can be associated with the STLB.                                 |
-| `sample_record.data_src().value().is_tlb_walk()`        | `True`, if the access can be associated with the hardware walker.                      |
-| `sample_record.data_src().value().is_locked()`          | `True`, If the address was accessed via lock instruction.                              |
-| `sample_record.data_src().value().is_data_blocked()`    | `True` in case the data could not be forwarded.                                        |
-| `sample_record.data_src().value().is_address_blocked()` | `True` in case of an address conflict.                                                 |
-| `sample_record.data_src().value().is_snoop_hit()`       | `True`, if access was a snoop hit.                                                     |
-| `sample_record.data_src().value().is_snoop_miss()`      | `True`, if access was a snoop miss.                                                    |
-| `sample_record.data_src().value().is_snoop_hit_modified()`          | `True`, if access was a snoop hit modified.                                            |
+| Query                                                      | Information                                                                              |
+|------------------------------------------------------------|------------------------------------------------------------------------------------------|
+| `sample_record.data_src().value().is_load()`               | `True`, if the access was a load operation.                                              |
+| `sample_record.data_src().value().is_store()`              | `True`, if the access was a store operation.                                             |
+| `sample_record.data_src().value().is_prefetch()`           | `True`, if the access was a prefetch operation.                                          |
+| `sample_record.data_src().value().is_exec()`               | `True`, if the access was an execute operation.                                          |
+| `sample_record.data_src().value().is_mem_hit()`            | `True`, if the access was a hit.                                                         |
+| `sample_record.data_src().value().is_mem_miss()`           | `True`, if the access was a miss.                                                        |
+| `sample_record.data_src().value().is_mem_hit()`            | `True`, if the access was a hit.                                                         |
+| `sample_record.data_src().value().is_mem_l1()`             | `True`, if the data was found in the L1 cache.                                           |
+| `sample_record.data_src().value().is_mem_l2()`             | `True`, if the data was found in the L2 cache.                                           |
+| `sample_record.data_src().value().is_mem_l3()`             | `True`, if the data was found in the L3 cache.                                           |
+| `sample_record.data_src().value().is_mem_l4()`             | `True`, if the data was found in the L4 cache (since Linux `4.14`).                      |
+| `sample_record.data_src().value().is_mem_lfb()`            | `True`, if the data was found in the Line Fill Buffer (or Miss Address Buffer on AMD).   |
+| `sample_record.data_src().value().is_mem_l2_mhb()`         | `True`, if the data was found in the L2 Miss Handling Buffer (since Linux `6.11`).       |
+| `sample_record.data_src().value().is_mem_local()`          | `True`, if the data was found in local memory subsystem (since Linux `4.14`).            |
+| `sample_record.data_src().value().is_mem_remote()`         | `True`, if the data was found in remote memory subsystem (since Linux `4.14`).           |
+| `sample_record.data_src().value().is_mem_ram()`            | `True`, if the data was found in any (any) RAM.                                          |
+| `sample_record.data_src().value().is_mem_local_ram()`      | `True`, if the data was found in the local RAM.                                          |
+| `sample_record.data_src().value().is_mem_remote_ram()`     | `True`, if the data was found in any remote RAM.                                         |
+| `sample_record.data_src().value().is_mem_hops0()`          | `True`, if the data was found locally (since Linux `5.16`).                              |
+| `sample_record.data_src().value().is_mem_hops1()`          | `True`, if the data was found on the same node (since Linux `5.17`).                     |
+| `sample_record.data_src().value().is_mem_hops2()`          | `True`, if the data was found on a remote socket (since Linux `5.17`).                   |
+| `sample_record.data_src().value().is_mem_hops3()`          | `True`, if the data was found on a remote board (since Linux `5.17`).                    |
+| `sample_record.data_src().value().is_mem_remote_ram1()`    | `True`, if the data was found in a remote RAM on the same node.                          |
+| `sample_record.data_src().value().is_mem_remote_ram2()`    | `True`, if the data was found in a remote RAM on a different socket.                     |
+| `sample_record.data_src().value().is_mem_remote_ram3()`    | `True`, if the data was found in a remote RAM on a different board (since Linux `5.17`). |
+| `sample_record.data_src().value().is_mem_remote_cce1()`    | `True`, if the data was found in a cache with one hop distance.                          |
+| `sample_record.data_src().value().is_mem_remote_cce2()`    | `True`, if the data was found in a cache with two hops distance.                         |
+| `sample_record.data_src().value().is_pmem()`               | `True`, if the data was found on a PMEM device (since Linux `4.14`).                     |
+| `sample_record.data_src().value().is_cxl()`                | `True`, if the data was transferred via Compute Express Link (since Linux `6.1`).        |
+| `sample_record.data_src().value().is_io()`                 | `True`, if the memory address is I/O.                                                    |
+| `sample_record.data_src().value().is_uncached()`           | `True`, if the memory address is related to uncached memory.                             |
+| `sample_record.data_src().value().is_tlb_hit()`            | `True`, if the access was a TLB hit.                                                     |
+| `sample_record.data_src().value().is_tlb_miss()`           | `True`, if the access was a TLB miss.                                                    |
+| `sample_record.data_src().value().is_tlb_l1()`             | `True`, if the access can be associated with the dTLB.                                   |
+| `sample_record.data_src().value().is_tlb_l2()`             | `True`, if the access can be associated with the STLB.                                   |
+| `sample_record.data_src().value().is_tlb_walk()`           | `True`, if the access can be associated with the hardware walker.                        |
+| `sample_record.data_src().value().is_locked()`             | `True`, If the address was accessed via lock instruction.                                |
+| `sample_record.data_src().value().is_data_blocked()`       | `True` in case the data could not be forwarded.                                          |
+| `sample_record.data_src().value().is_address_blocked()`    | `True` in case of an address conflict (since Linux `5.12`).                              |
+| `sample_record.data_src().value().is_snoop_hit()`          | `True`, if access was a snoop hit.                                                       |
+| `sample_record.data_src().value().is_snoop_miss()`         | `True`, if access was a snoop miss.                                                      |
+| `sample_record.data_src().value().is_snoop_hit_modified()` | `True`, if access was a snoop hit modified.                                              |
 
 All these queries wrap around the `perf_mem_data_src` data structure.
 Since we may have missed specific operations, you can also access each particular data structure:
 * `sample_record.data_src().value().op()` accesses the `PERF_MEM_OP` structure.
 * `sample_record.data_src().value().lvl()` accesses the `PERF_MEM_LVL` structure. Note that this structure is deprecated, use `sample_record.data_src().value().lvl_num()` instead.
-* `sample_record.data_src().value().lvl_num()` accesses the `PERF_MEM_LVL_NUM` structure.
-* `sample_record.data_src().value().remote()` accesses the `PERF_MEM_REMOTE` structure.
+* `sample_record.data_src().value().lvl_num()` accesses the `PERF_MEM_LVL_NUM` structure (since Linux `4.14`).
+* `sample_record.data_src().value().remote()` accesses the `PERF_MEM_REMOTE` structure (since Linux `4.14`).
 * `sample_record.data_src().value().snoop()` accesses the `PERF_MEM_SNOOP` structure.
-* `sample_record.data_src().value().snoopx()` accesses the `PERF_MEM_SNOOPX` structure.
+* `sample_record.data_src().value().snoopx()` accesses the `PERF_MEM_SNOOPX` structure (since Linux `4.14`).
 * `sample_record.data_src().value().lock()` accesses the `PERF_MEM_LOCK` structure.
-* `sample_record.data_src().value().blk()` accesses the `PERF_MEM_BLK` structure.
+* `sample_record.data_src().value().blk()` accesses the `PERF_MEM_BLK` structure (since Linux `5.12`).
 * `sample_record.data_src().value().tlb()` accesses the `PERF_MEM_TLB` structure.
-* `sample_record.data_src().value().hops()` accesses the `PERF_MEM_HOPS` structure.
+* `sample_record.data_src().value().hops()` accesses the `PERF_MEM_HOPS` structure (since Linux `5.16`).
 
 &rarr; [See code example](../examples/address_sampling.cpp)
 
@@ -604,23 +620,23 @@ In case the instruction was a load/store instruction, the sample will include da
 * `ibs_op_uops_l3missonly` selects instructions during the execution pipeline that miss the L3 cache, using micro-operations as the trigger.
 * `ibs_fetch` selects instructions in the fetch-state (frontend) using cycles as the trigger.
 * `ibs_fetch_l3missonly` selects instructions in the fetch-state (frontend) that miss the L3 cache, again, using cycles as a trigger.
+
 ---
 
-## Debugging Counter Settings
-In certain scenarios, configuring counters for sampling can be challenging, as settings (e.g., `precise_ip`) may need to be adjusted for different machines.
-To facilitate this process, perf provides a debug output option:
-
-
-    perf --debug perf-event-open [mem] record ...
-
-
-This command helps visualize configurations for various counters, which is also beneficial for retrieving event codes (for more details, see the [counters documentation](counters.md)).
-
-Similarly, *perf-cpp* includes a debug feature for sampled counters.
-To examine the configuration settings—particularly useful if encountering errors during `sampler.start();`—enable debugging in your code as follows:
+## Troubleshooting Counter Configurations
+Debugging and configuring hardware counters can sometimes be complex, as settings (e.g., the precision – `precise_ip`) may need to be adjusted for different machines.
+Utilize *perf-cpp*'s debugging features to gain insights into the internal workings of performance counters and troubleshoot any configuration issues:
 
 ```cpp
-sample_config.is_debug(true);
+auto config = perf::SampleConfig{};
+config.is_debug(true);
+
+auto sampler = perf::Sampler{ counter_definitions, config };
 ```
 
-When `is_debug` is set to `true`, *perf-cpp* will display the configuration of all counters upon initiating sampling.
+The idea is borrowed from *Linux Perf*, which can be asked to print counter configurations as follows:
+```bash
+perf --debug perf-event-open stat -- sleep 1
+```
+
+This command helps visualize configurations for various counters, which is also beneficial for retrieving event codes (for more details, see the [counters documentation](counters.md)).

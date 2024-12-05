@@ -3,6 +3,8 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <utility>
+#include <vector>
 #if defined(__x86_64__) || defined(__i386__)
 #include <cpuid.h>
 #endif
@@ -28,7 +30,7 @@ public:
    */
   [[nodiscard]] static bool is_intel_aux_counter_required() noexcept
   {
-#if (defined(__GNUC__) && __GNUC__ > 10) || (defined(__clang__) &&  __clang_major__ > 11)
+#if (defined(__GNUC__) && __GNUC__ > 10) || (defined(__clang__) && __clang_major__ > 11)
     /// "sapphirerapids" and "alderlake" is only supported since clang-12 and gcc-11
     if (is_intel()) {
       return static_cast<bool>(__builtin_cpu_is("sapphirerapids")) || static_cast<bool>(__builtin_cpu_is("alderlake"));
@@ -103,7 +105,35 @@ public:
    */
   [[nodiscard]] static std::optional<std::uint32_t> amd_ibs_fetch_type();
 
+  /**
+   * @return The bit format of IBS execution counter, if IBS is supported by the underlying hardware.
+   */
+  [[nodiscard]] static std::optional<std::uint8_t> amd_ibs_op_bit();
+
+  /**
+   * @return The bit format of IBS execution counter with l3miss filter, if IBS is supported by the underlying hardware.
+   */
+  [[nodiscard]] static std::optional<std::uint8_t> amd_ibs_op_l3miss_bit();
+
+  /**
+   * @return The bit format of IBS fetch counter, if IBS is supported by the underlying hardware.
+   */
+  [[nodiscard]] static std::optional<std::uint8_t> amd_ibs_fetch_bit();
+
+  /**
+   * @return The bit format of IBS fetch counter with l3miss filter, if IBS is supported by the underlying hardware.
+   */
+  [[nodiscard]] static std::optional<std::uint8_t> amd_ibs_fetch_l3miss_bit();
+
 private:
+  /**
+   * Tries to read the type from the provided file.
+   *
+   * @param path Path to the file.
+   * @return Integer representation of type.
+   */
+  [[nodiscard]] static std::optional<std::uint32_t> parse_type_from_file(std::string&& path);
+
   /**
    * Tries to read event and umask from the provided file.
    *
@@ -111,5 +141,15 @@ private:
    * @return Integer representation of event and umask.
    */
   [[nodiscard]] static std::optional<std::uint64_t> parse_event_umask_from_file(std::string&& path);
+
+  /**
+   * Tries to read a format file and returns the id of the config and the number of bits.
+   * Some formats have multiple entires.
+   *
+   * @param path
+   * @return List of pairs (config id, bits).
+   */
+  [[nodiscard]] static std::vector<std::pair<std::uint8_t, std::pair<std::uint8_t, std::optional<std::uint8_t>>>>
+  parse_format(std::string&& path);
 };
 }

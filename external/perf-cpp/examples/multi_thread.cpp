@@ -30,7 +30,8 @@ main()
                                     "cache-misses",
                                     "dTLB-miss-ratio",
                                     "L1-data-miss-ratio",
-                                    "cycles-per-instruction" });
+                                    "cycles-per-instruction",
+                                    "nanoseconds" });
   } catch (std::runtime_error& e) {
     std::cerr << e.what() << std::endl;
     return 1;
@@ -46,7 +47,7 @@ main()
   auto thread_local_results =
     std::vector<std::uint64_t>(count_threads, 0U); /// Array to store the thread-local results.
 
-  for (auto thread_index = 0U; thread_index < count_threads; ++thread_index) {
+  for (auto thread_index = std::uint16_t(0U); thread_index < count_threads; ++thread_index) {
     threads.emplace_back(
       [thread_index, items_per_thread, &thread_local_results, &benchmark, &multithread_event_counter]() {
         auto local_value = 0ULL;

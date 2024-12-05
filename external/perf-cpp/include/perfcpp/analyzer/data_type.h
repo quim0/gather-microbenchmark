@@ -3,7 +3,6 @@
 #include <cstdint>
 #include <perfcpp/sample.h>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 namespace perf::analyzer {
@@ -45,6 +44,12 @@ public:
   }
   DataType(const DataType&) = default;
   DataType(DataType&&) noexcept = default;
+  DataType(std::string&& new_name, const DataType& other)
+    : _name(std::move(new_name))
+    , _size(other._size)
+    , _members(other._members)
+  {
+  }
   ~DataType() = default;
 
   DataType& operator=(const DataType&) = default;
@@ -147,87 +152,5 @@ private:
   std::string _name;
   std::size_t _size;
   std::vector<Member> _members;
-};
-
-class DataAnalyzerResult
-{
-public:
-  explicit DataAnalyzerResult(std::vector<DataType>&& result) noexcept
-    : _data_types(std::move(result))
-  {
-  }
-  ~DataAnalyzerResult() = default;
-
-  [[nodiscard]] std::string to_string() const noexcept;
-
-private:
-  std::vector<DataType> _data_types;
-};
-
-class DataAnalyzer
-{
-public:
-  /**
-   * Adds a data type to the analyzer.
-   *
-   * @param data_type Data type to add.
-   */
-  void add(DataType&& data_type);
-
-  /**
-   * Marks the given reference as an instance of the given data type.
-   *
-   * @param name Name of the data type.
-   * @param reference Address of an instance of the data type.
-   */
-  void annotate(const std::string& name, std::uintptr_t reference);
-
-  /**
-   * Marks the given reference as an instance of the given data type.
-   *
-   * @param name Name of the data type.
-   * @param reference Address of an instance of the data type.
-   */
-  void annotate(const std::string& name, void* reference) { annotate(name, std::uintptr_t(reference)); }
-
-  /**
-   * Marks the given reference as an instance of the given data type.
-   *
-   * @param name Name of the data type.
-   * @param reference Address of an instance of the data type.
-   */
-  void annotate(const std::string& name, const void* reference) { annotate(name, std::uintptr_t(reference)); }
-
-  /**
-   * Marks an array of data objects of the same data type.
-   *
-   * @param name Name of the data type.
-   * @param reference Address of the array.
-   * @param items_in_array Number of items in the array.
-   */
-  void annotate(const std::string& name, void* reference, const std::uint64_t items_in_array)
-  {
-    annotate(name, reinterpret_cast<const void*>(reference), items_in_array);
-  }
-
-  /**
-   * Marks an array of data objects of the same data type.
-   *
-   * @param name Name of the data type.
-   * @param reference Address of the array.
-   * @param items_in_array Number of items in the array.
-   */
-  void annotate(const std::string& name, const void* reference, std::uint64_t items_in_array);
-
-  /**
-   * Maps the given samples (with memory addresses) to data object earlier added to the analyzer.
-   *
-   * @param samples Samples to map.
-   * @return A list of all data types enriched with samples that map to members of the data type.
-   */
-  DataAnalyzerResult map(const std::vector<Sample>& samples);
-
-private:
-  std::unordered_map<std::string, std::pair<DataType, std::vector<std::uintptr_t>>> _instances;
 };
 }
