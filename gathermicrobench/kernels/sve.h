@@ -136,6 +136,7 @@ void sve_gather32_kernel_throughput(
 void sve_gather32_kernel_latency(
     const int32_t* const data, 
     const uint64_t data_size,
+    const int benchmark,
     const int stride
 )
 {
