@@ -75,20 +75,23 @@ void benchmark_run_32bits(bench_params_t params)
     const int64_t data_size   = get_data_size(params); 
     const int64_t total_iters = iters * data_size; 
     #ifdef __ARM_FEATURE_SVE
-        params.simd_type = (params.simd_type == SCALAR) ? SCALAR : REG_512BIT;
+        size_t num_lanes = svcntw();
+        params.simd_type = (params.simd_type == SCALAR) ? SCALAR     : 
+                           ( num_lanes == 4 )           ? REG_128BIT : 
+                           ( num_lanes == 8 )           ? REG_256BIT : REG_512BIT;
     #endif
     auto config = perf::Config{};
-    config.max_groups(6U);             /// Only two hardware counters
-    config.max_counters_per_group(1U); /// Only one event per counter.
+    config.max_groups(6U);
+    config.max_counters_per_group(1U);
 
     auto counter_definitions = perf::CounterDefinition{};
     auto event_counter       = perf::EventCounter{counter_definitions, config};
     if (!event_counter.add({ "instructions",
-                        "cycles",
-                        "cache-misses",
-                        "cache-references",
-                        "L1-dcache-load-misses",
-                        "L1-dcache-loads"}, perf::EventCounter::Schedule::Separate)) {
+                              "cycles",
+                              "cache-misses",
+                              "cache-references",
+                              "L1-dcache-load-misses",
+                              "L1-dcache-loads"}, perf::EventCounter::Schedule::Separate)) {
         std::cerr << "Could not add performance counters." << std::endl;
     }
 

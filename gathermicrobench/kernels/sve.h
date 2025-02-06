@@ -5,21 +5,21 @@
 
 svint32_t svset_s32(const int32_t* data, int start, int benchmark, int stride)
 {
-    int start8    = start << 3; 
-    svbool_t mask = svptrue_b32();
-    int buff_2equal[16] = {0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7};
-    int buff_4equal[16] = {0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3};
-    svint32_t start_reg = svdup_s32_x(mask, start8);
-    svint32_t stride_4equal = svld1(mask, &buff_4equal[0]); 
-    svint32_t stride_2equal = svld1(mask, &buff_2equal[0]); 
+    int32_t start8 = start << __builtin_ctz(svcntw()); 
+    svbool_t mask  = svptrue_b32();
+    int32_t buff_2equal[16] = {0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7};
+    int32_t buff_4equal[16] = {0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3};
+    svint32_t start_reg     = svdup_s32(start8);
+    svint32_t stride_4equal = svld1_s32(mask, &buff_4equal[0]); 
+    svint32_t stride_2equal = svld1_s32(mask, &buff_2equal[0]); 
     switch(benchmark)
     {
-        case /*RANDOM*/ 0:        return svld1(mask, &data[start8]); 
+        case /*RANDOM*/ 0:        return svld1_s32(mask, &data[start8]); 
         case /*STRIDE*/ 1:        return svindex_s32(start8, stride);
-        case /*STRIDE_2EQUAL*/ 2: return svadd_s32_m(mask, stride_2equal, start_reg);
-        case /*STRIDE_4EQUAL*/ 3: return svadd_s32_m(mask, stride_4equal, start_reg);
-        case /*ALL_SAME*/ 4:      return svdup_s32_x(mask, start);
-        default:                  return svld1(mask, &data[start8]); 
+        case /*STRIDE_2EQUAL*/ 2: return svadd_s32_x(mask, stride_2equal, start_reg);
+        case /*STRIDE_4EQUAL*/ 3: return svadd_s32_x(mask, stride_4equal, start_reg);
+        case /*ALL_SAME*/ 4:      return svdup_s32(start);
+        default:                  return svld1_s32(mask, &data[start8]); 
     }
 }
 
@@ -29,7 +29,8 @@ void sve_ld1_throughput (
     const int stride
     ) 
 {
-    svbool_t mask = svptrue_b32();
+    svbool_t mask    = svptrue_b32();
+    size_t num_lanes = svcntw(); 
     svint32_t random_simd1,  random_simd2;
     svint32_t random_simd3,  random_simd4;
     svint32_t random_simd5,  random_simd6;
@@ -37,44 +38,41 @@ void sve_ld1_throughput (
     svint32_t random_simd9,  random_simd10;
     svint32_t random_simd11, random_simd12;
     svint32_t random_simd13;
-    int32_t index1  =   0, index2  =  16; 
-    int32_t index3  =  32, index4  =  48; 
-    int32_t index5  =  64, index6  =  80; 
-    int32_t index7  =  96, index8  = 112;
-    int32_t index9  = 128, index10 = 144; 
-    int32_t index11 = 160, index12 = 176; 
-    int32_t index13 = 192; 
+    int32_t index1  = 0,              index2  = 1  * num_lanes; 
+    int32_t index3  = 2  * num_lanes, index4  = 3  * num_lanes; 
+    int32_t index5  = 4  * num_lanes, index6  = 5  * num_lanes; 
+    int32_t index7  = 6  * num_lanes, index8  = 7  * num_lanes;
+    int32_t index9  = 8  * num_lanes, index10 = 9  * num_lanes; 
+    int32_t index11 = 10 * num_lanes, index12 = 11 * num_lanes; 
+    int32_t index13 = 12 * num_lanes; 
     for (uint64_t i = 0; i < data_size; i++) 
     {
-        random_simd1  = svld1(mask, &data[index1]); 
-        random_simd2  = svld1(mask, &data[index2]); 
-        random_simd3  = svld1(mask, &data[index3]); 
-        random_simd4  = svld1(mask, &data[index4]); 
-        random_simd5  = svld1(mask, &data[index5]); 
-        random_simd6  = svld1(mask, &data[index6]); 
-        random_simd7  = svld1(mask, &data[index7]); 
-        random_simd8  = svld1(mask, &data[index8]); 
-        random_simd9  = svld1(mask, &data[index9]); 
-        random_simd10 = svld1(mask, &data[index10]); 
-        random_simd11 = svld1(mask, &data[index11]); 
-        random_simd12 = svld1(mask, &data[index12]); 
-        random_simd13 = svld1(mask, &data[index13]); 
-        index1  = data[index1];  index2  = data[index2]; 
-        index3  = data[index3];  index4  = data[index4];
-        index5  = data[index5];  index6  = data[index6]; 
-        index7  = data[index7];  index8  = data[index8];  
-        index5  = data[index5];  index6  = data[index6]; 
-        index7  = data[index7];  index8  = data[index8]; 
-        index9  = data[index9];  index10 = data[index10];  
-        index11 = data[index11]; index12 = data[index12]; 
-        index13 = data[index13];
-        do_not_optimize(random_simd1);  do_not_optimize(random_simd2); 
-        do_not_optimize(random_simd3);  do_not_optimize(random_simd4); 
-        do_not_optimize(random_simd5);  do_not_optimize(random_simd6); 
-        do_not_optimize(random_simd7);  do_not_optimize(random_simd8); 
-        do_not_optimize(random_simd9);  do_not_optimize(random_simd10); 
-        do_not_optimize(random_simd11); do_not_optimize(random_simd12); 
-        do_not_optimize(random_simd13);
+        random_simd1  = svld1_s32(mask, &data[index1]); 
+        random_simd2  = svld1_s32(mask, &data[index2]); 
+        random_simd3  = svld1_s32(mask, &data[index3]); 
+        random_simd4  = svld1_s32(mask, &data[index4]); 
+        random_simd5  = svld1_s32(mask, &data[index5]); 
+        random_simd6  = svld1_s32(mask, &data[index6]); 
+        random_simd7  = svld1_s32(mask, &data[index7]); 
+        random_simd8  = svld1_s32(mask, &data[index8]); 
+        random_simd9  = svld1_s32(mask, &data[index9]); 
+        random_simd10 = svld1_s32(mask, &data[index10]); 
+        random_simd11 = svld1_s32(mask, &data[index11]); 
+        random_simd12 = svld1_s32(mask, &data[index12]); 
+        random_simd13 = svld1_s32(mask, &data[index13]); 
+        index1  = svlasta_s32(mask, random_simd1);
+        index2  = svlasta_s32(mask, random_simd2);
+        index3  = svlasta_s32(mask, random_simd3);
+        index4  = svlasta_s32(mask, random_simd4);
+        index5  = svlasta_s32(mask, random_simd5);
+        index6  = svlasta_s32(mask, random_simd6);
+        index7  = svlasta_s32(mask, random_simd7);
+        index8  = svlasta_s32(mask, random_simd8);
+        index9  = svlasta_s32(mask, random_simd9);
+        index10 = svlasta_s32(mask, random_simd10);
+        index11 = svlasta_s32(mask, random_simd11);
+        index12 = svlasta_s32(mask, random_simd12);
+        index13 = svlasta_s32(mask, random_simd13);
     }
     unused(stride); 
     do_not_optimize(random_simd1);  do_not_optimize(random_simd2); 
@@ -109,19 +107,19 @@ void sve_gather32_kernel_throughput(
     svint32_t random_simd13 = svset_s32(data, 12, benchmark, stride);
     for (int i = 0 ; i < data_size; i++)
     {
-        random_simd1  = svld1_gather_s32offset_s32(mask, data, random_simd1);
-        random_simd2  = svld1_gather_s32offset_s32(mask, data, random_simd2);
-        random_simd3  = svld1_gather_s32offset_s32(mask, data, random_simd3);
-        random_simd4  = svld1_gather_s32offset_s32(mask, data, random_simd4);
-        random_simd5  = svld1_gather_s32offset_s32(mask, data, random_simd5);
-        random_simd6  = svld1_gather_s32offset_s32(mask, data, random_simd6);
-        random_simd7  = svld1_gather_s32offset_s32(mask, data, random_simd7);
-        random_simd8  = svld1_gather_s32offset_s32(mask, data, random_simd8);
-        random_simd9  = svld1_gather_s32offset_s32(mask, data, random_simd9);
-        random_simd10 = svld1_gather_s32offset_s32(mask, data, random_simd10);
-        random_simd11 = svld1_gather_s32offset_s32(mask, data, random_simd11);
-        random_simd12 = svld1_gather_s32offset_s32(mask, data, random_simd12);
-        random_simd13 = svld1_gather_s32offset_s32(mask, data, random_simd13);
+        random_simd1  = svld1_gather_s32index_s32(mask, (int32_t*)data, random_simd1);
+        random_simd2  = svld1_gather_s32index_s32(mask, (int32_t*)data, random_simd2);
+        random_simd3  = svld1_gather_s32index_s32(mask, (int32_t*)data, random_simd3);
+        random_simd4  = svld1_gather_s32index_s32(mask, (int32_t*)data, random_simd4);
+        random_simd5  = svld1_gather_s32index_s32(mask, (int32_t*)data, random_simd5);
+        random_simd6  = svld1_gather_s32index_s32(mask, (int32_t*)data, random_simd6);
+        random_simd7  = svld1_gather_s32index_s32(mask, (int32_t*)data, random_simd7);
+        random_simd8  = svld1_gather_s32index_s32(mask, (int32_t*)data, random_simd8);
+        random_simd9  = svld1_gather_s32index_s32(mask, (int32_t*)data, random_simd9);
+        random_simd10 = svld1_gather_s32index_s32(mask, (int32_t*)data, random_simd10);
+        random_simd11 = svld1_gather_s32index_s32(mask, (int32_t*)data, random_simd11);
+        random_simd12 = svld1_gather_s32index_s32(mask, (int32_t*)data, random_simd12);
+        random_simd13 = svld1_gather_s32index_s32(mask, (int32_t*)data, random_simd13);
     }
     unused(stride); 
     do_not_optimize(random_simd1);  do_not_optimize(random_simd2); 
@@ -144,7 +142,7 @@ void sve_gather32_kernel_latency(
     svint32_t random_simd1  = svset_s32(data,  0, benchmark, stride);
     for (int i = 0 ; i < data_size; i++)
     {
-        random_simd1  = svld1_gather_s32offset_s32(mask, data, random_simd1);
+        random_simd1  = svld1_gather_s32index_s32(mask, (int32_t*)data, random_simd1);
     }
     unused(stride); 
     do_not_optimize(random_simd1);
@@ -161,7 +159,7 @@ void sve_ld1_latencty(
     int32_t index1 = 0;
     for (uint64_t i = 0; i < data_size; i++) 
     {
-        random_simd1  = svld1(mask, &data[index1]); 
+        random_simd1  = svld1_s32(mask, &data[index1]); 
         index1  = data[index1];  
         do_not_optimize(random_simd1); 
     }

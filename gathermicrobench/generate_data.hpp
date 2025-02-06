@@ -48,7 +48,7 @@ void generate_data_random_32bits(int32_t* data, int64_t data_size)
 
 void generate_data_stride_32bits(int32_t* data, int64_t data_size, bench_params_t params)
 {
-    const int stride = (params.bench_algo == LOAD) ? 1 : params.stride; 
+    const int stride = (params.bench_algo == LOAD)      ?   1 : params.stride; 
     const int multi  = (params.simd_type == REG_512BIT) ?  15 : (params.simd_type == REG_256BIT) ? 7 : 3;
     int stride_size  = stride * multi + 1; 
     int v_size       = data_size / stride_size; 
