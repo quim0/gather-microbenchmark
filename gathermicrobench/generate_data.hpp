@@ -30,7 +30,7 @@ void generate_data_random_32bits(int32_t* data, int64_t data_size)
     
     for (int64_t i = 0; i < data_size; i++) 
     {
-        data_aux[i] = i;
+        data_aux[i] = static_cast<int32_t>(i);
     }
     
     std::srand(0);

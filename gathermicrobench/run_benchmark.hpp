@@ -68,6 +68,24 @@ void benchmark_32bits(const int32_t* data, int64_t data_size, bench_params_t par
     #endif
 }
 
+void* allocate_array(bench_params_t params, const int64_t data_size)
+{
+    if (params.is_aligned == ALIGNED) return std::aligned_alloc(32, data_size * sizeof(int32_t));
+    void* raw_data = std::malloc(data_size * sizeof(int32_t));
+    return static_cast<void*>(static_cast<char*>(raw_data) + 1);
+}
+
+void free_array(void* data, bench_params_t params, const int64_t data_size)
+{
+    if (params.is_aligned == ALIGNED)
+    {
+        std::free(data);
+        return;
+    }
+    void* raw_data = static_cast<void*>(static_cast<char*>(data) - 1);
+    std::free(raw_data);
+}
+
 void benchmark_run_32bits(bench_params_t params)
 {
     const bench_algo_t algo   = params.bench_algo; 
@@ -100,7 +118,7 @@ void benchmark_run_32bits(bench_params_t params)
         for(auto bench: benchmark_v) 
         {
             params.bench_algo = bench; 
-            int32_t* data     = new int32_t[data_size];
+            int32_t* data     = static_cast<int32_t*>(allocate_array(params, data_size));
             init_data_32bits(data, data_size, params);
             
             event_counter.start();
@@ -113,13 +131,13 @@ void benchmark_run_32bits(bench_params_t params)
                 std::cout << counter_value << " " << counter_name << std::endl;
             }
             std::cout << std::endl;
-            delete data; 
+            free_array(data, params, data_size);
         }
         params.bench_algo = ALL; 
     }
     else
     {
-        int32_t* data     = new int32_t[data_size];
+        int32_t* data     = static_cast<int32_t*>(allocate_array(params, data_size));
         init_data_32bits(data, data_size, params);
 
         event_counter.start();
@@ -132,7 +150,7 @@ void benchmark_run_32bits(bench_params_t params)
             std::cout << counter_value << " " << counter_name << std::endl;
         }
         std::cout << std::endl;
-        delete data;
+        free_array(data, params, data_size);
     }
 }
 

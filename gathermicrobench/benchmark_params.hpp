@@ -36,12 +36,18 @@ typedef enum {
     SCALAR
 } simd_size_t;
 
+typedef enum {
+    ALIGNED, 
+    NOT_ALIGNED
+} align_alloc_t;
+
 typedef struct {
     memory_size_t mm_type; 
     bench_algo_t  bench_algo; 
     bench_mode_t  bench_mode;
     data_bytes_t  data_type;
     simd_size_t   simd_type; 
+    align_alloc_t is_aligned;
     int64_t       iters;
     int           stride; 
 } bench_params_t; 
@@ -57,6 +63,7 @@ bench_params_t bench_default_params(void)
         .bench_mode  = THROUGHPUT,
         .data_type   = INT32_DATA,
         .simd_type   = REG_128BIT,
+        .is_aligned  = ALIGNED,
         .iters       = 750000,
         .stride      = 1, 
     };

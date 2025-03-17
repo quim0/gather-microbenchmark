@@ -66,6 +66,17 @@ int string_to_value(std::string value, std::string param)
            return THROUGHPUT;
         }
     }
+
+    if (param == "aligned-type")
+    {
+        if      (value == "ALIGNED")     return ALIGNED; 
+        else if (value == "NOT_ALIGNED") return NOT_ALIGNED;
+        else
+        {
+           std::cout << "Unknown aligned-type: Using ALIGNED instead." << std::endl;
+           return ALIGNED;
+        }
+    }
     return 0;
 }
 
@@ -83,6 +94,7 @@ void parse_arguments_benchmark(int argc, char** argv, bench_params_t* params)
         ("t,benchmark-mode", "Benchmark mode: (THROUGHPUT, LATENCY)", cxxopts::value<std::string>())
         ("d,data-type", "Data type: (INT32_DATA, INT64_DATA)", cxxopts::value<std::string>())
         ("S,stride", "Stride (1, 2 or 4): If benchmark is not stride this field is ignored", cxxopts::value<int>())
+        ("a,aligned-type", "Aligned data: ALIGNED, NOT_ALIGNED", cxxopts::value<std::string>())
         ("h,help", "Print usage")
     ;
 
@@ -135,6 +147,12 @@ void parse_arguments_benchmark(int argc, char** argv, bench_params_t* params)
             stride = (stride == 4) ? 4 : (stride == 2) ? 2 : 1; 
             params->stride = (params->bench_algo == LOAD) ? 1 : stride;
         }
+
+        if (result.count("aligned-type"))
+        {
+            std::string align  = result["aligned-type"].as<std::string>(); 
+            params->is_aligned = (align_alloc_t)string_to_value(align, "aligned-type");
+        }
     }
     catch(const std::exception& e)
     {
@@ -147,6 +165,7 @@ int main(int argc, char** argv)
 {
     bench_params_t params = bench_default_params(); 
     parse_arguments_benchmark(argc, argv, &params);
+    print_arguments_benchmark(params);
     benchmark_run(params);
     return 0;
 }
