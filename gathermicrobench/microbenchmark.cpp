@@ -165,7 +165,7 @@ int main(int argc, char** argv)
 {
     bench_params_t params = bench_default_params(); 
     parse_arguments_benchmark(argc, argv, &params);
-    print_arguments_benchmark(params);
+    //print_arguments_benchmark(params);
     benchmark_run(params);
     return 0;
 }
